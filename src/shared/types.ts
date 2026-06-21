@@ -81,6 +81,8 @@ export interface AppSettings {
   autostartEnabled: boolean;
   defaultReminderMinutes: number;
   showCalendarEventsInTasks: boolean;
+  showEventsInCalendar: boolean;
+  showTasksInCalendar: boolean;
   calendarStartHour: number;
   calendarEndHour: number;
   upcomingRange: UpcomingRange;
@@ -95,6 +97,8 @@ export const defaultSettings: AppSettings = {
   autostartEnabled: false,
   defaultReminderMinutes: 10,
   showCalendarEventsInTasks: true,
+  showEventsInCalendar: true,
+  showTasksInCalendar: true,
   calendarStartHour: 6,
   calendarEndHour: 22,
   upcomingRange: 'all',

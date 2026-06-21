@@ -363,8 +363,8 @@ nav {
 }
 
 .calendar-panel {
-  height: min(82vh, 960px);
-  min-height: 820px;
+  height: calc(100vh - 128px);
+  min-height: 560px;
   overflow: hidden;
   padding: 10px;
 }
@@ -419,6 +419,32 @@ nav {
   overflow: hidden;
 }
 
+.calendar-panel .fc-event-main-frame {
+  min-width: 0;
+}
+
+.calendar-panel .fc-event-time {
+  flex-shrink: 0;
+  font-weight: 800;
+  max-width: none;
+}
+
+.calendar-panel .fc-event-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-panel .fc-timegrid-slot {
+  height: 46px;
+}
+
+.calendar-panel .fc-timegrid-slot-label-frame {
+  align-items: center;
+  display: flex;
+  height: 100%;
+}
+
 .calendar-panel .fc-daygrid-event-harness,
 .calendar-panel .fc-daygrid-day-events {
   max-width: 100%;
@@ -432,6 +458,10 @@ nav {
 
 .calendar-panel .importance-low {
   opacity: 0.78;
+}
+
+.calendar-panel .task-calendar-event {
+  border-style: dashed;
 }
 
 .calendar-panel .draft-preview-event {
@@ -493,6 +523,15 @@ nav {
   padding: 0;
 }
 
+.mini-segmented {
+  min-height: 40px;
+}
+
+.mini-segmented button {
+  min-height: 30px;
+  padding: 0 8px;
+}
+
 .time-parts legend {
   color: #4d5a50;
   font-size: 0.88rem;
@@ -550,10 +589,18 @@ textarea {
 }
 
 .toggle-row input,
-.checkbox-row input {
+.checkbox-row input,
+.mini-toggle input {
   height: 18px;
   min-height: 18px;
   width: 18px;
+}
+
+.mini-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .segmented {
@@ -749,6 +796,66 @@ textarea {
   color: #7d2e19;
   margin: 0;
   padding: 8px 10px;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-line {
+  background: #f7faf4;
+  border: 1px solid #e1e8df;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.detail-line span,
+.field-hint {
+  color: #667466;
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.detail-line strong {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.confirm-box {
+  background: #fffdf7;
+  border: 1px solid #dccb9c;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.confirm-box p {
+  color: #5e604f;
+  margin: 0;
+}
+
+.undo-toast {
+  align-items: center;
+  background: #18241f;
+  border-radius: 8px;
+  bottom: 24px;
+  box-shadow: 0 12px 24px rgba(20, 28, 24, 0.22);
+  color: #ffffff;
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  position: fixed;
+  right: 24px;
+  z-index: 30;
+}
+
+.item-notes {
+  white-space: normal;
 }
 
 .rotate-icon {

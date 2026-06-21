@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCustomRecurrenceRule, createRecurrenceRule, expandOccurrences } from './recurrence';
+import { createCustomRecurrenceRule, createRecurrenceRule, expandOccurrences, parseRecurrenceRule } from './recurrence';
 
 describe('recurrence', () => {
   it('expands daily recurrence', () => {
@@ -108,5 +108,21 @@ describe('recurrence', () => {
 
     expect(rule).toContain('FREQ=YEARLY');
     expect(rule).not.toContain('BYMONTH');
+  });
+
+  it('parses generated rules back into editable recurrence input', () => {
+    const rule = createCustomRecurrenceRule({
+      frequency: 'weekly',
+      interval: 2,
+      count: 4,
+      weekdays: ['MO', 'WE']
+    });
+
+    expect(parseRecurrenceRule(rule)).toMatchObject({
+      frequency: 'weekly',
+      interval: 2,
+      count: 4,
+      weekdays: ['MO', 'WE']
+    });
   });
 });

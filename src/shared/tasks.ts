@@ -1,4 +1,4 @@
-import { isAfter, parseISO } from 'date-fns';
+import { addMilliseconds, differenceInMilliseconds, isAfter, parseISO } from 'date-fns';
 import type { Task } from './types';
 import { normalizeOccurrenceKey } from './date';
 import { nextOccurrence } from './recurrence';
@@ -19,12 +19,50 @@ export function completeTaskOccurrence(task: Task, occurrenceAt = task.endsAt ??
     };
   }
 
+  const advancedTask = advanceRecurringTask(task, parseISO(occurrenceKey), true);
+
   return {
-    ...task,
-    status: 'open',
+    ...advancedTask,
     completedOccurrences,
     updatedAt: new Date().toISOString()
   };
+}
+
+export function advanceRecurringTask(task: Task, after = new Date(), includeAfter = false): Task {
+  const endsAtValue = task.endsAt ?? task.dueAt;
+  if (!task.recurrenceRule || !endsAtValue) {
+    return task;
+  }
+
+  const endsAt = parseISO(endsAtValue);
+  const next = nextOccurrence(endsAt, task.recurrenceRule, after);
+  if (!next || (!includeAfter && !isAfter(next, endsAt))) {
+    return task;
+  }
+
+  const duration = task.startsAt
+    ? differenceInMilliseconds(endsAt, parseISO(task.startsAt))
+    : 0;
+
+  return {
+    ...task,
+    status: 'open',
+    startsAt: task.startsAt ? addMilliseconds(next, -duration).toISOString() : undefined,
+    endsAt: next.toISOString(),
+    dueAt: next.toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+export function advanceOverdueRecurringTasks(tasks: Task[], now = new Date()): Task[] {
+  return tasks.map((task) => {
+    const endsAt = task.endsAt ?? task.dueAt;
+    if (!task.recurrenceRule || !endsAt || isAfter(parseISO(endsAt), now)) {
+      return task;
+    }
+
+    return advanceRecurringTask(task, now);
+  });
 }
 
 export function toggleTaskCompletion(task: Task, occurrenceAt = task.endsAt ?? task.dueAt ?? new Date().toISOString()): Task {

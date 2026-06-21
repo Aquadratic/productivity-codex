@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRecurrenceRule } from './recurrence';
-import { completeTaskOccurrence, getTaskCompletionTime, isTaskOccurrenceCompleted, toggleTaskCompletion } from './tasks';
+import { advanceOverdueRecurringTasks, completeTaskOccurrence, getTaskCompletionTime, isTaskOccurrenceCompleted, toggleTaskCompletion } from './tasks';
 import type { Task } from './types';
 
 function task(overrides: Partial<Task> = {}): Task {
@@ -44,5 +44,15 @@ describe('tasks', () => {
 
     expect(recurring.status).toBe('open');
     expect(isTaskOccurrenceCompleted(recurring, '2026-06-20T14:00:00.000Z')).toBe(true);
+    expect(recurring.dueAt).toBe('2026-06-21T14:00:00.000Z');
+  });
+
+  it('advances overdue recurring tasks without completion records', () => {
+    const [advanced] = advanceOverdueRecurringTasks([
+      task({ recurrenceRule: createRecurrenceRule({ frequency: 'daily', interval: 1 }) })
+    ], new Date('2026-06-22T09:00:00.000Z'));
+
+    expect(advanced.dueAt).toBe('2026-06-22T14:00:00.000Z');
+    expect(advanced.completedOccurrences).toEqual([]);
   });
 });

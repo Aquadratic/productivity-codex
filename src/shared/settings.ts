@@ -19,6 +19,8 @@ export function normalizeSettings(settings: Partial<AppSettings> | undefined): A
   return {
     ...merged,
     upcomingRange: ['today', '7days', '30days', 'all'].includes(merged.upcomingRange) ? merged.upcomingRange : defaultSettings.upcomingRange,
+    showEventsInCalendar: merged.showEventsInCalendar ?? defaultSettings.showEventsInCalendar,
+    showTasksInCalendar: merged.showTasksInCalendar ?? defaultSettings.showTasksInCalendar,
     calendarStartHour,
     calendarEndHour: calendarEndHour === calendarStartHour ? defaultSettings.calendarEndHour : calendarEndHour,
     soundVolume,

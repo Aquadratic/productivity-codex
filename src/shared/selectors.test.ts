@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTaskListGroups, getTaskListItems, getUpcomingItems } from './selectors';
+import { getCalendarViewEvents, getTaskListGroups, getTaskListItems, getUpcomingItems } from './selectors';
 import { defaultSettings, type PlannerState } from './types';
 
 function state(overrides: Partial<PlannerState> = {}): PlannerState {
@@ -135,5 +135,30 @@ describe('selectors', () => {
 
     expect(grouped.active.map((item) => item.title)).toEqual(['Homework', 'Class']);
     expect(grouped.completed.map((item) => item.title)).toEqual(['Done later']);
+  });
+
+  it('maps tasks and recurring events into calendar items based on visibility settings', () => {
+    const calendarState = state({
+      events: [{
+        ...state().events[0],
+        recurrenceRule: 'RRULE:FREQ=DAILY;COUNT=2'
+      }],
+      tasks: [{
+        ...state().tasks[0],
+        startsAt: '2026-06-20T13:30:00.000Z',
+        endsAt: '2026-06-20T14:00:00.000Z'
+      }]
+    });
+
+    expect(getCalendarViewEvents(calendarState, new Date('2026-06-20T00:00:00.000Z'), new Date('2026-06-22T00:00:00.000Z')).map((item) => item.extendedProps.kind)).toEqual([
+      'event',
+      'event',
+      'task'
+    ]);
+
+    expect(getCalendarViewEvents({
+      ...calendarState,
+      settings: { ...defaultSettings, showEventsInCalendar: false, showTasksInCalendar: true }
+    }, new Date('2026-06-20T00:00:00.000Z'), new Date('2026-06-22T00:00:00.000Z')).map((item) => item.extendedProps.kind)).toEqual(['task']);
   });
 });

@@ -10,6 +10,8 @@ export interface RecurrenceInput {
   months?: number[];
 }
 
+export type RecurrenceDraft = Omit<RecurrenceInput, 'frequency'> & { frequency: RepeatFrequency | 'none' };
+
 export function createRecurrenceRule(input: RecurrenceInput): string {
   const freq = {
     daily: RRule.DAILY,
@@ -34,6 +36,35 @@ export function createCustomRecurrenceRule(input: RecurrenceInput): string | und
   }
 
   return createRecurrenceRule(input);
+}
+
+export function parseRecurrenceRule(rule: string | undefined): RecurrenceDraft {
+  if (!rule) {
+    return { frequency: 'none', interval: 1 };
+  }
+
+  const parsed = rrulestr(rule) as RRule;
+  const options = parsed.options;
+  const frequency = frequencyFromRRule(options.freq);
+  return {
+    frequency,
+    interval: options.interval || 1,
+    count: options.count || undefined,
+    until: options.until ?? undefined,
+    weekdays: options.byweekday?.map(fromWeekday).filter(Boolean) as RecurrenceInput['weekdays'],
+    months: frequency === 'monthly' ? options.bymonth?.filter((month) => month >= 1 && month <= 12) : undefined
+  };
+}
+
+function frequencyFromRRule(freq: number): RepeatFrequency {
+  if (freq === RRule.WEEKLY) return 'weekly';
+  if (freq === RRule.MONTHLY) return 'monthly';
+  if (freq === RRule.YEARLY) return 'yearly';
+  return 'daily';
+}
+
+function fromWeekday(day: number): 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU' | undefined {
+  return ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'][day] as 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU' | undefined;
 }
 
 export function expandOccurrences(start: Date, rule: string | undefined, from: Date, to: Date): Date[] {

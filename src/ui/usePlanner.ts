@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CalendarEvent, PlannerState, Task, TimerMode, TimerSession } from '../shared/types';
 import { buildEventReminders, buildTaskReminders, getDueReminders, getMissedReminders } from '../shared/reminders';
-import { toggleTaskCompletion } from '../shared/tasks';
+import { advanceOverdueRecurringTasks, toggleTaskCompletion } from '../shared/tasks';
 import { toggleEventCompletion } from '../shared/events';
 import { createId } from '../shared/id';
 import { createPlatformPorts } from '../platform';
@@ -13,9 +13,11 @@ import { normalizeSettings } from '../shared/settings';
 export type View = 'dashboard' | 'calendar' | 'tasks' | 'timer' | 'settings';
 
 function rebuildReminders(state: PlannerState): PlannerState {
+  const tasks = advanceOverdueRecurringTasks(state.tasks);
   return {
     ...state,
-    reminders: [...state.events.flatMap(buildEventReminders), ...state.tasks.flatMap(buildTaskReminders)]
+    tasks,
+    reminders: [...state.events.flatMap(buildEventReminders), ...tasks.flatMap(buildTaskReminders)]
   };
 }
 
@@ -198,7 +200,7 @@ export function usePlanner() {
     commitState(() => createDefaultState());
   }, [commitState]);
 
-  const calendarEvents = useMemo(() => getCalendarViewEvents(state.events), [state.events]);
+  const calendarEvents = useMemo(() => getCalendarViewEvents(state), [state]);
   const upcoming = useMemo(() => getUpcomingItems(state), [state]);
   const todayItems = useMemo(() => getTodayItems(state), [state]);
 

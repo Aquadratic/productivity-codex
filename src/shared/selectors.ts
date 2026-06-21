@@ -1,8 +1,9 @@
-import { addDays, isAfter, isBefore, isSameDay, parseISO } from 'date-fns';
+import { addDays, addMilliseconds, differenceInMilliseconds, isAfter, isBefore, isSameDay, parseISO } from 'date-fns';
 import type { CalendarEvent, PlannerState, Task, UpcomingRange } from './types';
 import { isEventOccurrenceCompleted } from './events';
 import { getTaskCompletionTime } from './tasks';
 import { normalizeOccurrenceKey } from './date';
+import { expandOccurrences } from './recurrence';
 
 export type PlannerItemKind = 'task' | 'event';
 export type PlannerFilter = 'all' | 'today' | 'upcoming' | 'overdue' | 'completed';
@@ -40,26 +41,31 @@ export interface CalendarViewEvent {
   extendedProps: {
     importance: CalendarEvent['importance'];
     notes: string;
+    kind: PlannerItemKind;
+    sourceId: string;
+    occurrenceAt?: string;
   };
   backgroundColor: string;
   borderColor: string;
 }
 
-export function getCalendarViewEvents(events: CalendarEvent[]): CalendarViewEvent[] {
-  return events.map((event) => ({
-    id: event.id,
-    title: event.title,
-    start: event.startsAt,
-    end: event.endsAt,
-    allDay: event.allDay,
-    classNames: [`importance-${event.importance}`],
-    backgroundColor: event.color,
-    borderColor: event.color,
-    extendedProps: {
-      importance: event.importance,
-      notes: event.notes
-    }
-  }));
+export function getCalendarViewEvents(
+  stateOrEvents: PlannerState | CalendarEvent[],
+  rangeStart?: Date,
+  rangeEnd?: Date
+): CalendarViewEvent[] {
+  const state = Array.isArray(stateOrEvents) ? undefined : stateOrEvents;
+  const events = Array.isArray(stateOrEvents) ? stateOrEvents : stateOrEvents.events;
+  const settings = state?.settings;
+  const showEvents = settings?.showEventsInCalendar ?? true;
+  const showTasks = settings?.showTasksInCalendar ?? false;
+  const from = rangeStart ?? new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
+  const to = rangeEnd ?? addDays(from, 60);
+
+  return [
+    ...(showEvents ? events.flatMap((event) => eventToCalendarEvents(event, from, to)) : []),
+    ...(state && showTasks ? state.tasks.flatMap((task) => taskToCalendarEvents(task, from, to)) : [])
+  ];
 }
 
 export function getUpcomingItems(state: PlannerState, now = new Date(), range: UpcomingRange = state.settings.upcomingRange): PlannerListItem[] {
@@ -115,9 +121,12 @@ export function getTaskListGroups(
 }
 
 function tasksToItems(tasks: Task[]): PlannerListItem[] {
-  return tasks.map((task) => ({
+  return tasks.flatMap((task) => {
+    const active: PlannerListItem[] = task.status === 'completed'
+      ? []
+      : [{
     id: task.id,
-    kind: 'task',
+    kind: 'task' as const,
     title: task.title,
     notes: task.notes,
     startsAt: task.startsAt,
@@ -126,10 +135,27 @@ function tasksToItems(tasks: Task[]): PlannerListItem[] {
     allDay: task.allDay,
     priority: task.priority,
     status: task.status,
-    completed: task.status === 'completed',
+    completed: false,
     completedAt: getTaskCompletionTime(task),
     source: task
-  }));
+      }];
+    const completed: PlannerListItem[] = task.completedOccurrences.map((record) => ({
+      id: `${task.id}:${record.occurrenceKey}`,
+      kind: 'task' as const,
+      title: task.title,
+      notes: task.notes,
+      startsAt: undefined,
+      endsAt: record.occurrenceKey,
+      dueAt: record.occurrenceKey,
+      allDay: task.allDay,
+      priority: task.priority,
+      status: 'completed' as const,
+      completed: true,
+      completedAt: record.completedAt,
+      source: task
+    }));
+    return [...active, ...completed];
+  });
 }
 
 function eventsToItems(events: CalendarEvent[]): PlannerListItem[] {
@@ -164,4 +190,54 @@ function matchesTabFilter(item: PlannerListItem, filter: TaskListTab, now: Date)
   if (filter === 'today') return isSameDay(date, now);
   if (filter === 'overdue') return isBefore(date, now);
   return !isBefore(date, now);
+}
+
+function eventToCalendarEvents(event: CalendarEvent, from: Date, to: Date): CalendarViewEvent[] {
+  const startsAt = parseISO(event.startsAt);
+  const endsAt = parseISO(event.endsAt);
+  const duration = differenceInMilliseconds(endsAt, startsAt);
+  return expandOccurrences(startsAt, event.recurrenceRule, from, to).map((occurrence) => ({
+    id: `event:${event.id}:${occurrence.toISOString()}`,
+    title: event.title,
+    start: occurrence.toISOString(),
+    end: addMilliseconds(occurrence, duration).toISOString(),
+    allDay: event.allDay,
+    classNames: [`importance-${event.importance}`],
+    backgroundColor: event.color,
+    borderColor: event.color,
+    extendedProps: {
+      importance: event.importance,
+      notes: event.notes,
+      kind: 'event',
+      sourceId: event.id,
+      occurrenceAt: occurrence.toISOString()
+    }
+  }));
+}
+
+function taskToCalendarEvents(task: Task, from: Date, to: Date): CalendarViewEvent[] {
+  if (task.status === 'completed' || !task.endsAt) {
+    return [];
+  }
+
+  const endsAt = parseISO(task.endsAt);
+  const startsAt = task.startsAt ? parseISO(task.startsAt) : endsAt;
+  const duration = Math.max(0, differenceInMilliseconds(endsAt, startsAt));
+  return expandOccurrences(endsAt, task.recurrenceRule, from, to).map((occurrence) => ({
+    id: `task:${task.id}:${occurrence.toISOString()}`,
+    title: task.title,
+    start: task.startsAt ? addMilliseconds(occurrence, -duration).toISOString() : occurrence.toISOString(),
+    end: occurrence.toISOString(),
+    allDay: task.allDay,
+    classNames: [`task-calendar-event`, `importance-${task.priority}`],
+    backgroundColor: '#23693c',
+    borderColor: '#23693c',
+    extendedProps: {
+      importance: task.priority,
+      notes: task.notes,
+      kind: 'task',
+      sourceId: task.id,
+      occurrenceAt: occurrence.toISOString()
+    }
+  }));
 }

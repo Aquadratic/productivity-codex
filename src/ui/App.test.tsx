@@ -96,6 +96,8 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Settings/i }));
     await userEvent.click(screen.getByRole('button', { name: /Reset test data/i }));
+    const resetButtons = screen.getAllByRole('button', { name: /Reset test data/i });
+    await userEvent.click(resetButtons[resetButtons.length - 1]);
     await userEvent.click(screen.getByRole('button', { name: /Tasks/i }));
     expect(screen.queryByText('Temporary task')).not.toBeInTheDocument();
   });
