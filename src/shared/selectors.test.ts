@@ -13,6 +13,7 @@ function state(overrides: Partial<PlannerState> = {}): PlannerState {
         endsAt: '2026-06-20T16:00:00.000Z',
         allDay: false,
         importance: 'important',
+        color: '#5578a6',
         reminders: [],
         completedOccurrences: [],
         createdAt: '2026-06-20T00:00:00.000Z',
@@ -78,5 +79,29 @@ describe('selectors', () => {
         new Date('2026-06-20T13:00:00.000Z')
       ).map((item) => item.kind)
     ).toEqual(['task']);
+  });
+
+  it('moves completed tasks and events into completed sorted by completion time', () => {
+    const completed = state({
+      events: [
+        {
+          ...state().events[0],
+          completedOccurrences: [{ occurrenceKey: '2026-06-20T15:00:00.000Z', completedAt: '2026-06-20T18:00:00.000Z' }]
+        }
+      ],
+      tasks: [
+        {
+          ...state().tasks[0],
+          status: 'completed',
+          completedOccurrences: [{ occurrenceKey: '2026-06-20T14:00:00.000Z', completedAt: '2026-06-20T19:00:00.000Z' }]
+        }
+      ]
+    });
+
+    expect(getTaskListItems(completed, 'today', new Date('2026-06-20T13:00:00.000Z'))).toHaveLength(0);
+    expect(getTaskListItems(completed, 'completed', new Date('2026-06-20T13:00:00.000Z')).map((item) => item.title)).toEqual([
+      'Homework',
+      'Class'
+    ]);
   });
 });

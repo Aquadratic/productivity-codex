@@ -7,6 +7,7 @@ describe('App', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
   });
 
   it('renders the dashboard and can add a task', async () => {
@@ -45,7 +46,9 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Complete/i }));
     expect(await screen.findByText(/Timer complete/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Start another/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Start another/i }));
+    expect(await screen.findByText(/Choose a session/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Stop/i })).not.toBeInTheDocument();
   });
 
   it('adds calendar events and shows them in upcoming and tasks', async () => {
@@ -59,9 +62,9 @@ describe('App', () => {
     const startDateInput = document.querySelector('input[name="startDate"]') as HTMLInputElement;
     const endDateInput = document.querySelector('input[name="endDate"]') as HTMLInputElement;
     await userEvent.clear(startDateInput);
-    await userEvent.type(startDateInput, '2026-06-21');
+    await userEvent.type(startDateInput, '2026-06-22');
     await userEvent.clear(endDateInput);
-    await userEvent.type(endDateInput, '2026-06-21');
+    await userEvent.type(endDateInput, '2026-06-22');
     await userEvent.click(screen.getByRole('button', { name: /Add event/i }));
 
     await userEvent.click(screen.getByRole('button', { name: /Dashboard/i }));
@@ -71,6 +74,8 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: /^upcoming$/i }));
     expect(screen.getByText('Math class')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Mark Math class complete/i }));
+    expect(screen.queryByText('Math class')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^completed$/i }));
     expect(screen.getByRole('button', { name: /Mark Math class incomplete/i })).toBeInTheDocument();
   });
 

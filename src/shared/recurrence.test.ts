@@ -65,4 +65,37 @@ describe('recurrence', () => {
     expect(rule).toContain('COUNT=4');
     expect(rule).toContain('BYDAY=MO,WE');
   });
+
+  it('builds daily weekday recurrence', () => {
+    const rule = createCustomRecurrenceRule({
+      frequency: 'daily',
+      interval: 1,
+      weekdays: ['MO', 'TU', 'WE', 'TH', 'FR']
+    });
+
+    expect(rule).toContain('FREQ=DAILY');
+    expect(rule).toContain('BYDAY=MO,TU,WE,TH,FR');
+  });
+
+  it('builds monthly selected-month recurrence', () => {
+    const rule = createCustomRecurrenceRule({
+      frequency: 'monthly',
+      interval: 1,
+      months: [1, 6, 12]
+    });
+
+    expect(rule).toContain('FREQ=MONTHLY');
+    expect(rule).toContain('BYMONTH=1,6,12');
+  });
+
+  it('builds yearly recurrence with optional until', () => {
+    const rule = createCustomRecurrenceRule({
+      frequency: 'yearly',
+      interval: 1,
+      until: new Date('2028-12-31T23:59:59.000Z')
+    });
+
+    expect(rule).toContain('FREQ=YEARLY');
+    expect(rule).toContain('UNTIL=20281231T235959Z');
+  });
 });

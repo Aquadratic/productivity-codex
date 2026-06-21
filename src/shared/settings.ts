@@ -1,4 +1,4 @@
-import { defaultSettings, type AppSettings, type PlannerState } from './types';
+import { defaultSettings, type AppSettings, type CompletionRecord, type PlannerState } from './types';
 
 type PersistedPlannerState = Omit<Partial<PlannerState>, 'settings'> & {
   settings?: Partial<AppSettings>;
@@ -30,13 +30,47 @@ export function normalizePlannerState(state: PersistedPlannerState): PlannerStat
   return {
     events: (state.events ?? []).map((event) => ({
       ...event,
-      completedOccurrences: event.completedOccurrences ?? []
+      color: event.color ?? '#5578a6',
+      completedOccurrences: normalizeCompletionRecords(event.completedOccurrences, event.updatedAt ?? event.startsAt)
     })),
-    tasks: state.tasks ?? [],
+    tasks: (state.tasks ?? []).map((task) => ({
+      ...task,
+      completedOccurrences: normalizeCompletionRecords(task.completedOccurrences, task.updatedAt ?? task.dueAt ?? task.createdAt)
+    })),
     timerSessions: state.timerSessions ?? [],
     reminders: state.reminders ?? [],
     settings: normalizeSettings(state.settings)
   };
+}
+
+function normalizeCompletionRecords(value: unknown, fallbackCompletedAt: string): CompletionRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((record) => {
+      if (typeof record === 'string') {
+        return { occurrenceKey: record, completedAt: fallbackCompletedAt };
+      }
+
+      if (
+        record &&
+        typeof record === 'object' &&
+        'occurrenceKey' in record &&
+        typeof record.occurrenceKey === 'string'
+      ) {
+        return {
+          occurrenceKey: record.occurrenceKey,
+          completedAt: 'completedAt' in record && typeof record.completedAt === 'string'
+            ? record.completedAt
+            : fallbackCompletedAt
+        };
+      }
+
+      return undefined;
+    })
+    .filter((record): record is CompletionRecord => Boolean(record));
 }
 
 function clampHour(value: unknown, fallback: number): number {

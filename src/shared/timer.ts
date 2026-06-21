@@ -14,6 +14,22 @@ export interface TimerSnapshot {
   isExpired: boolean;
 }
 
+export interface TimerDurationParts {
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
+export function durationPartsToSeconds(parts: TimerDurationParts): number {
+  return Math.max(0, Math.floor(parts.hours)) * 3600
+    + Math.max(0, Math.floor(parts.minutes)) * 60
+    + Math.max(0, Math.floor(parts.seconds));
+}
+
+export function isValidTimerDuration(parts: TimerDurationParts): boolean {
+  return durationPartsToSeconds(parts) > 0;
+}
+
 export function getTimerSnapshot(activeTimer: ActiveTimer, nowMs = Date.now()): TimerSnapshot {
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - activeTimer.startedAt) / 1000));
   const remainingSeconds = Math.max(0, activeTimer.durationSeconds - elapsedSeconds);
@@ -29,7 +45,7 @@ export function getTimerSnapshot(activeTimer: ActiveTimer, nowMs = Date.now()): 
 }
 
 export function formatTimer(seconds: number): string {
-  const safeSeconds = Math.max(0, seconds);
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const remainingSeconds = safeSeconds % 60;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRecurrenceRule } from './recurrence';
-import { completeTaskOccurrence, isTaskOccurrenceCompleted, toggleTaskCompletion } from './tasks';
+import { completeTaskOccurrence, getTaskCompletionTime, isTaskOccurrenceCompleted, toggleTaskCompletion } from './tasks';
 import type { Task } from './types';
 
 function task(overrides: Partial<Task> = {}): Task {
@@ -29,6 +29,8 @@ describe('tasks', () => {
     const reopened = toggleTaskCompletion(completed, '2026-06-20T14:00:00.000Z');
 
     expect(completed.status).toBe('completed');
+    expect(completed.completedOccurrences[0].completedAt).toBeTruthy();
+    expect(getTaskCompletionTime(completed, '2026-06-20T14:00:00.000Z')).toBeTruthy();
     expect(reopened.status).toBe('open');
     expect(reopened.completedOccurrences).toEqual([]);
   });

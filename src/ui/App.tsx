@@ -1,4 +1,5 @@
 import '@fullcalendar/core/index.js';
+import type { EventClickArg } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
@@ -23,12 +24,12 @@ import {
   Volume2,
   X
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import type { CalendarEvent, Task, TimerMode, UpcomingRange } from '../shared/types';
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import type { CalendarEvent, RepeatFrequency, Task, TimerMode, UpcomingRange } from '../shared/types';
 import { createCustomRecurrenceRule } from '../shared/recurrence';
 import { validateEventTime } from '../shared/events';
 import { getSoundChoice, soundChoices } from '../shared/sounds';
-import { formatTimer, getTimerSnapshot } from '../shared/timer';
+import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration } from '../shared/timer';
 import { getTaskListItems, getUpcomingItems, type PlannerListItem } from '../shared/selectors';
 import { usePlanner, type View } from './usePlanner';
 
@@ -51,13 +52,32 @@ const weekdayOptions = [
 ] as const;
 
 type EventDraft = {
+  title: string;
+  notes: string;
   startDate: string;
   start: string;
   endDate: string;
   end: string;
+  important: boolean;
+  color: string;
 };
 
-type RepeatFrequency = 'none' | 'daily' | 'weekly' | 'monthly';
+const eventColors = ['#5578a6', '#23693c', '#8f4d32', '#7b4fa3', '#b2671d', '#2f7f7b'];
+
+const monthOptions = [
+  { value: '1', label: 'Jan' },
+  { value: '2', label: 'Feb' },
+  { value: '3', label: 'Mar' },
+  { value: '4', label: 'Apr' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'Jun' },
+  { value: '7', label: 'Jul' },
+  { value: '8', label: 'Aug' },
+  { value: '9', label: 'Sep' },
+  { value: '10', label: 'Oct' },
+  { value: '11', label: 'Nov' },
+  { value: '12', label: 'Dec' }
+] as const;
 
 export function App() {
   const planner = usePlanner();
@@ -111,7 +131,13 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const todaysEvents = planner.todayItems.filter((item) => item.kind === 'event');
   const todaysTasks = planner.todayItems.filter((item) => item.kind === 'task');
   const [range, setRange] = useState<UpcomingRange>(planner.state.settings.upcomingRange);
+  const [now, setNow] = useState(new Date());
   const upcoming = useMemo(() => getUpcomingItems(planner.state, new Date(), range), [planner.state, range]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <div className="view-stack dashboard-view">
@@ -129,6 +155,7 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         <MetricCard label="Events today" value={todaysEvents.length} />
         <MetricCard label="Tasks today" value={todaysTasks.length} />
         <MetricCard label="Upcoming" value={upcoming.length} />
+        <MetricCard label="Current time" value={format(now, 'h:mm:ss a')} />
         <ListPanel title="Today" detail="Schedule and task list" empty="Nothing due today.">
           {planner.todayItems.map((item) => (
             <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} />
@@ -164,13 +191,46 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [draft, setDraft] = useState<EventDraft>(() => toDraft(new Date()));
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string>();
 
   const openDraft = (start: Date, end?: Date) => {
     setDraft(toDraft(start, end ?? addMinutes(start, 15)));
+    setEditingEventId(undefined);
     setDrawerOpen(true);
   };
 
-  const handleDateClick = (arg: DateClickArg) => openDraft(arg.date);
+  const openExisting = (id: string) => {
+    const event = planner.state.events.find((candidate) => candidate.id === id);
+    if (!event) return;
+    setDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event));
+    setEditingEventId(id);
+    setDrawerOpen(true);
+  };
+
+  const handleDateClick = (arg: DateClickArg) => openDraft(addMinutes(arg.date, -30), addMinutes(arg.date, 30));
+  const handleEventClick = (arg: EventClickArg) => openExisting(arg.event.id);
+  const previewEvents = useMemo(() => {
+    if (!drawerOpen) return planner.calendarEvents;
+    const previewStart = new Date(`${draft.startDate}T${draft.start}`);
+    const previewEnd = new Date(`${draft.endDate}T${draft.end}`);
+    if (Number.isNaN(previewStart.getTime()) || Number.isNaN(previewEnd.getTime())) {
+      return planner.calendarEvents;
+    }
+    return [
+      ...planner.calendarEvents,
+      {
+        id: 'draft-preview',
+        title: draft.title || 'New event',
+        start: previewStart.toISOString(),
+        end: previewEnd.toISOString(),
+        allDay: false,
+        classNames: ['draft-preview-event'],
+        backgroundColor: draft.color,
+        borderColor: draft.color,
+        extendedProps: { importance: draft.important ? 'important' as const : 'normal' as const, notes: draft.notes }
+      }
+    ];
+  }, [draft, drawerOpen, planner.calendarEvents]);
 
   return (
     <div className="view-stack full-height-view">
@@ -179,7 +239,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <p className="eyebrow">Calendar</p>
           <h2>Plan by time</h2>
         </div>
-        <button className="primary-action" onClick={() => { setDraft(toDraft(new Date())); setDrawerOpen(true); }} type="button">
+        <button className="primary-action" onClick={() => { setEditingEventId(undefined); setDrawerOpen(true); }} type="button">
           <CalendarDays size={18} />
           New event
         </button>
@@ -193,7 +253,8 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             dayMaxEvents={3}
             editable={false}
             eventDisplay="block"
-            events={planner.calendarEvents}
+            eventClick={handleEventClick}
+            events={previewEvents}
             expandRows
             headerToolbar={{
               left: 'prev,next today',
@@ -207,7 +268,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             selectable
             select={(selection) => openDraft(selection.start, selection.end)}
-            slotDuration="00:15:00"
+            slotDuration="01:00:00"
             snapDuration="00:15:00"
             scrollTime="06:00:00"
             slotMinTime="00:00:00"
@@ -222,8 +283,21 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           />
         </section>
         {drawerOpen && (
-          <div className="drawer-backdrop" role="presentation">
-            <EventForm draft={draft} planner={planner} onClose={() => setDrawerOpen(false)} />
+          <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDrawerOpen(false);
+          }}>
+            <EventForm
+              draft={draft}
+              editingEventId={editingEventId}
+              planner={planner}
+              onChange={setDraft}
+              onClose={() => setDrawerOpen(false)}
+              onSaved={() => {
+                setDrawerOpen(false);
+                setEditingEventId(undefined);
+                setDraft(toDraft(new Date()));
+              }}
+            />
           </div>
         )}
       </div>
@@ -273,10 +347,12 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 
 function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [mode, setMode] = useState<TimerMode>('focus');
-  const [minutes, setMinutesValue] = useState(25);
+  const [duration, setDuration] = useState({ hours: 0, minutes: 25, seconds: 0 });
   const [now, setNow] = useState(Date.now());
+  const loopingAudio = useRef<HTMLAudioElement>();
   const snapshot = planner.activeTimer ? getTimerSnapshot(planner.activeTimer, now) : undefined;
   const settings = planner.state.settings;
+  const canStart = isValidTimerDuration(duration);
 
   useEffect(() => {
     if (!planner.activeTimer) return undefined;
@@ -292,9 +368,24 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 
   useEffect(() => {
     if (planner.completedTimer && settings.soundsEnabled) {
-      playSound(settings.timerCompleteSound, settings.soundVolume);
+      loopingAudio.current?.pause();
+      loopingAudio.current = playSound(settings.timerCompleteSound, settings.soundVolume, true);
     }
+    return () => {
+      loopingAudio.current?.pause();
+      loopingAudio.current = undefined;
+    };
   }, [planner.completedTimer, settings.soundsEnabled, settings.soundVolume, settings.timerCompleteSound]);
+
+  const stopCompleteSound = () => {
+    loopingAudio.current?.pause();
+    loopingAudio.current = undefined;
+  };
+
+  const dismissCompletion = () => {
+    stopCompleteSound();
+    planner.dismissCompletedTimer();
+  };
 
   if (planner.completedTimer) {
     return (
@@ -306,11 +397,15 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <p className="timer-meta">Nice work. Choose another sound, preview it, or start another session.</p>
           <SoundControls planner={planner} />
           <div className="timer-actions">
-            <button className="secondary-action" onClick={planner.dismissCompletedTimer} type="button">
+            <button className="secondary-action" onClick={stopCompleteSound} type="button">
+              <Volume2 size={18} />
+              Stop sound
+            </button>
+            <button className="secondary-action" onClick={dismissCompletion} type="button">
               <X size={18} />
               Close
             </button>
-            <button className="primary-action" onClick={() => { planner.dismissCompletedTimer(); planner.startTimer(mode, minutes); }} type="button">
+            <button className="primary-action" onClick={dismissCompletion} type="button">
               <Play size={18} />
               Start another
             </button>
@@ -346,12 +441,22 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         ) : (
           <>
             <SegmentedControl options={['focus', 'break']} value={mode} onChange={(value) => setMode(value as TimerMode)} />
-            <label className="field">
-              <span>Minutes</span>
-              <input min="1" max="180" type="number" value={minutes} onChange={(event) => setMinutesValue(Number(event.target.value))} />
-            </label>
+            <div className="duration-grid">
+              <label className="field">
+                <span>Hours</span>
+                <input min="0" max="12" type="number" value={duration.hours} onChange={(event) => setDuration({ ...duration, hours: Number(event.target.value) })} />
+              </label>
+              <label className="field">
+                <span>Minutes</span>
+                <input min="0" max="59" type="number" value={duration.minutes} onChange={(event) => setDuration({ ...duration, minutes: Number(event.target.value) })} />
+              </label>
+              <label className="field">
+                <span>Seconds</span>
+                <input min="0" max="59" type="number" value={duration.seconds} onChange={(event) => setDuration({ ...duration, seconds: Number(event.target.value) })} />
+              </label>
+            </div>
             <SoundControls planner={planner} />
-            <button className="primary-action" onClick={() => planner.startTimer(mode, minutes)} type="button">
+            <button className="primary-action" disabled={!canStart} onClick={() => planner.startTimer(mode, durationPartsToSeconds(duration))} type="button">
               <Play size={18} />
               Start timer
             </button>
@@ -417,14 +522,29 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   );
 }
 
-function EventForm({ draft, planner, onClose }: { draft: EventDraft; planner: ReturnType<typeof usePlanner>; onClose: () => void }) {
+function EventForm({
+  draft,
+  editingEventId,
+  planner,
+  onChange,
+  onClose,
+  onSaved
+}: {
+  draft: EventDraft;
+  editingEventId?: string;
+  planner: ReturnType<typeof usePlanner>;
+  onChange: (draft: EventDraft) => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [error, setError] = useState<string>();
+  const setField = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) => onChange({ ...draft, [key]: value });
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const startsAt = new Date(`${String(form.get('startDate'))}T${String(form.get('start'))}`).toISOString();
-    const endsAt = new Date(`${String(form.get('endDate'))}T${String(form.get('end'))}`).toISOString();
+    const startsAt = new Date(`${draft.startDate}T${draft.start}`).toISOString();
+    const endsAt = new Date(`${draft.endDate}T${draft.end}`).toISOString();
     const validationError = validateEventTime({ startsAt, endsAt });
 
     if (validationError) {
@@ -432,52 +552,68 @@ function EventForm({ draft, planner, onClose }: { draft: EventDraft; planner: Re
       return;
     }
 
-    planner.addEvent({
-      title: String(form.get('title')),
-      notes: String(form.get('notes')),
+    const eventInput = {
+      title: draft.title,
+      notes: draft.notes,
       startsAt,
       endsAt,
       allDay: false,
-      importance: form.get('important') ? 'important' : 'normal',
+      importance: draft.important ? 'important' as const : 'normal' as const,
+      color: draft.color,
       recurrenceRule: buildRecurrenceFromForm(form),
-      reminders: [{ minutesBefore: planner.state.settings.defaultReminderMinutes }],
-      completedOccurrences: []
-    });
-    onClose();
+      reminders: [{ minutesBefore: planner.state.settings.defaultReminderMinutes }]
+    };
+
+    if (editingEventId) {
+      planner.updateEvent(editingEventId, eventInput);
+    } else {
+      planner.addEvent({ ...eventInput, completedOccurrences: [] });
+    }
+    onSaved();
   };
 
   return (
-    <form className="panel form-panel drawer-panel" onSubmit={submit}>
-      <DrawerHeader title="New event" detail="Use 15-minute slots, multi-day times, and custom repeats." onClose={onClose} />
-      <input name="title" placeholder="Event title" required />
+    <form className="panel form-panel drawer-panel" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}>
+      <DrawerHeader title={editingEventId ? 'Edit event' : 'New event'} detail="Use 15-minute precision, multi-day times, colors, and custom repeats." onClose={onClose} />
+      <input name="title" placeholder="Event title" required value={draft.title} onChange={(event) => setField('title', event.target.value)} />
       <div className="form-grid">
         <label className="field">
           <span>Start date</span>
-          <input key={`start-date-${draft.startDate}`} defaultValue={draft.startDate} name="startDate" type="date" required />
+          <input name="startDate" type="date" required value={draft.startDate} onChange={(event) => setField('startDate', event.target.value)} />
         </label>
         <label className="field">
           <span>Start time</span>
-          <input key={`start-${draft.start}`} defaultValue={draft.start} name="start" step="900" type="time" required />
+          <input name="start" step="900" type="time" required value={draft.start} onChange={(event) => setField('start', event.target.value)} />
         </label>
       </div>
       <div className="form-grid">
         <label className="field">
           <span>End date</span>
-          <input key={`end-date-${draft.endDate}`} defaultValue={draft.endDate} name="endDate" type="date" required />
+          <input name="endDate" type="date" required value={draft.endDate} onChange={(event) => setField('endDate', event.target.value)} />
         </label>
         <label className="field">
           <span>End time</span>
-          <input key={`end-${draft.end}`} defaultValue={draft.end} name="end" step="900" type="time" required />
+          <input name="end" step="900" type="time" required value={draft.end} onChange={(event) => setField('end', event.target.value)} />
         </label>
       </div>
       <RecurrenceFields />
-      <textarea name="notes" placeholder="Notes" />
+      <textarea name="notes" placeholder="Notes" value={draft.notes} onChange={(event) => setField('notes', event.target.value)} />
       <label className="checkbox-row">
-        <input name="important" type="checkbox" />
+        <input name="important" type="checkbox" checked={draft.important} onChange={(event) => setField('important', event.target.checked)} />
         <span>Important</span>
       </label>
+      <ColorPicker value={draft.color} onChange={(color) => setField('color', color)} />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-action" type="submit">Add event</button>
+      <button className="primary-action" type="submit">{editingEventId ? 'Save event' : 'Add event'}</button>
+      {editingEventId && (
+        <button className="danger-action" type="button" onClick={() => {
+          planner.deleteEvent(editingEventId);
+          onSaved();
+        }}>
+          <Trash2 size={18} />
+          Delete event
+        </button>
+      )}
     </form>
   );
 }
@@ -527,7 +663,7 @@ function PlannerItemRow({ item, planner }: { item: PlannerListItem; planner: Ret
     : planner.toggleEvent(source as CalendarEvent, item.startsAt);
 
   return (
-    <div className={`list-row ${item.kind} ${item.completed ? 'completed' : ''}`}>
+    <div className={`list-row ${item.kind} ${item.completed ? 'completed' : ''}`} style={item.kind === 'event' ? { borderLeftColor: (source as CalendarEvent).color } : undefined}>
       <button
         aria-label={item.completed ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}
         className="icon-action"
@@ -540,6 +676,7 @@ function PlannerItemRow({ item, planner }: { item: PlannerListItem; planner: Ret
       <div className="item-main">
         <strong>{item.title}</strong>
         <span>{when ? format(parseISO(when), 'MMM d, h:mm a') : 'No due date'}</span>
+        {item.completedAt && <span className="completed-time">Completed {format(parseISO(item.completedAt), 'MMM d, h:mm a')}</span>}
       </div>
       <small>{item.kind === 'task' ? item.priority : item.importance}</small>
       {item.kind === 'event' && item.importance === 'important' && <Star size={16} />}
@@ -589,8 +726,24 @@ function SoundControls({ planner }: { planner: ReturnType<typeof usePlanner> }) 
   );
 }
 
+function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  return (
+    <fieldset className="color-picker">
+      <legend>Event color</legend>
+      <div className="color-grid">
+        {eventColors.map((color) => (
+          <label key={color} style={{ '--swatch-color': color } as CSSProperties}>
+            <input checked={value === color} name="color" type="radio" value={color} onChange={() => onChange(color)} />
+            <span aria-hidden="true" />
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function RecurrenceFields() {
-  const [frequency, setFrequency] = useState<RepeatFrequency>('none');
+  const [frequency, setFrequency] = useState<RepeatFrequency | 'none'>('none');
 
   return (
     <fieldset className="recurrence-box">
@@ -600,6 +753,7 @@ function RecurrenceFields() {
         <option value="daily">Daily</option>
         <option value="weekly">Weekly</option>
         <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
       </select>
       {frequency !== 'none' && (
         <>
@@ -614,15 +768,25 @@ function RecurrenceFields() {
             </label>
           </div>
           <label className="field">
-            <span>End by</span>
+            <span>End by (optional)</span>
             <input name="until" type="date" />
           </label>
-          {frequency === 'weekly' && (
+          {(frequency === 'daily' || frequency === 'weekly') && (
             <div className="weekday-grid" aria-label="Repeat weekdays">
               {weekdayOptions.map((day) => (
                 <label key={day.value}>
                   <input name="weekdays" type="checkbox" value={day.value} />
                   <span>{day.label}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {(frequency === 'monthly' || frequency === 'yearly') && (
+            <div className="month-grid" aria-label="Repeat months">
+              {monthOptions.map((month) => (
+                <label key={month.value}>
+                  <input name="months" type="checkbox" value={month.value} />
+                  <span>{month.label}</span>
                 </label>
               ))}
             </div>
@@ -633,7 +797,7 @@ function RecurrenceFields() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value }: { label: string; value: number | string }) {
   return (
     <section className="panel metric-card">
       <span>{label}</span>
@@ -642,7 +806,7 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ListPanel({ title, detail, empty, action, children }: { title: string; detail: string; empty: string; action?: React.ReactNode; children: React.ReactNode }) {
+function ListPanel({ title, detail, empty, action, children }: { title: string; detail: string; empty: string; action?: ReactNode; children: ReactNode }) {
   const childArray = Array.isArray(children) ? children : [children];
   const [expanded, setExpanded] = useState(false);
 
@@ -692,37 +856,45 @@ function SegmentedControl({ options, value, onChange }: { options: string[]; val
   );
 }
 
-function toDraft(start: Date, end = addMinutes(start, 15)): EventDraft {
+function toDraft(start: Date, end = addMinutes(start, 15), event?: CalendarEvent): EventDraft {
   return {
+    title: event?.title ?? '',
+    notes: event?.notes ?? '',
     startDate: format(start, 'yyyy-MM-dd'),
     start: format(start, 'HH:mm'),
     endDate: format(end, 'yyyy-MM-dd'),
-    end: format(end, 'HH:mm')
+    end: format(end, 'HH:mm'),
+    important: event?.importance === 'important',
+    color: event?.color ?? eventColors[0]
   };
 }
 
 function buildRecurrenceFromForm(form: FormData): string | undefined {
-  const frequency = String(form.get('frequency')) as RepeatFrequency;
+  const frequency = String(form.get('frequency')) as RepeatFrequency | 'none';
   if (frequency === 'none') return undefined;
 
   const countValue = String(form.get('count') || '');
   const untilValue = String(form.get('until') || '');
   const weekdays = form.getAll('weekdays').map(String) as Array<'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'>;
+  const months = form.getAll('months').map((month) => Number(month)).filter((month) => month >= 1 && month <= 12);
 
   return createCustomRecurrenceRule({
     frequency,
     interval: Math.max(1, Number(form.get('interval') || 1)),
     count: countValue ? Number(countValue) : undefined,
     until: untilValue ? new Date(`${untilValue}T23:59:59`) : undefined,
-    weekdays: frequency === 'weekly' && weekdays.length > 0 ? weekdays : undefined
+    weekdays: (frequency === 'daily' || frequency === 'weekly') && weekdays.length > 0 ? weekdays : undefined,
+    months: (frequency === 'monthly' || frequency === 'yearly') && months.length > 0 ? months : undefined
   });
 }
 
-function playSound(soundId: string, volume: number): void {
+function playSound(soundId: string, volume: number, loop = false): HTMLAudioElement {
   const audio = new Audio(getSoundChoice(soundId).src);
   audio.volume = volume;
+  audio.loop = loop;
   const playback = audio.play();
   if (playback) {
     playback.catch(() => undefined);
   }
+  return audio;
 }

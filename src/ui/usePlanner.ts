@@ -95,6 +95,24 @@ export function usePlanner() {
     }));
   }, [commitState]);
 
+  const updateEvent = useCallback((eventId: string, patch: Partial<Omit<CalendarEvent, 'id' | 'createdAt'>>) => {
+    commitState((current) => ({
+      ...current,
+      events: current.events.map((event) => (
+        event.id === eventId ? { ...event, ...patch, updatedAt: new Date().toISOString() } : event
+      ))
+    }));
+  }, [commitState]);
+
+  const updateTask = useCallback((taskId: string, patch: Partial<Omit<Task, 'id' | 'createdAt'>>) => {
+    commitState((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) => (
+        task.id === taskId ? { ...task, ...patch, updatedAt: new Date().toISOString() } : task
+      ))
+    }));
+  }, [commitState]);
+
   const toggleTask = useCallback((task: Task) => {
     commitState((current) => ({
       ...current,
@@ -123,12 +141,12 @@ export function usePlanner() {
     }));
   }, [commitState]);
 
-  const startTimer = useCallback((mode: TimerMode, minutes: number) => {
+  const startTimer = useCallback((mode: TimerMode, durationSeconds: number) => {
     setCompletedTimer(undefined);
     setActiveTimer({
       mode,
       startedAt: Date.now(),
-      durationSeconds: minutes * 60
+      durationSeconds
     });
   }, []);
 
@@ -191,6 +209,8 @@ export function usePlanner() {
     completedTimer,
     addEvent,
     addTask,
+    updateEvent,
+    updateTask,
     toggleTask,
     toggleEvent,
     deleteTask,

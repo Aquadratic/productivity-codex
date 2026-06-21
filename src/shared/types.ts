@@ -5,6 +5,7 @@ export type TaskPriority = 'low' | 'normal' | 'high';
 export type TaskStatus = 'open' | 'completed';
 export type TimerMode = 'focus' | 'break';
 export type UpcomingRange = 'today' | '7days' | '30days' | 'all';
+export type RepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface CompletionRecord {
   occurrenceKey: string;
@@ -23,6 +24,7 @@ export interface CalendarEvent {
   endsAt: string;
   allDay: boolean;
   importance: Importance;
+  color: string;
   recurrenceRule?: string;
   reminders: ReminderOffset[];
   completedOccurrences: CompletionRecord[];
@@ -39,7 +41,7 @@ export interface Task {
   dueAt?: string;
   recurrenceRule?: string;
   reminders: ReminderOffset[];
-  completedOccurrences: string[];
+  completedOccurrences: CompletionRecord[];
   createdAt: string;
   updatedAt: string;
 }

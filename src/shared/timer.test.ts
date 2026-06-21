@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatTimer, getTimerSnapshot } from './timer';
+import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration } from './timer';
 
 describe('timer', () => {
   it('calculates live timer progress', () => {
@@ -18,5 +18,12 @@ describe('timer', () => {
   it('formats timer values', () => {
     expect(formatTimer(65)).toBe('1:05');
     expect(formatTimer(3661)).toBe('1:01:01');
+    expect(formatTimer(1.9)).toBe('0:01');
+  });
+
+  it('converts precise duration parts to seconds', () => {
+    expect(durationPartsToSeconds({ hours: 1, minutes: 2, seconds: 3 })).toBe(3723);
+    expect(isValidTimerDuration({ hours: 0, minutes: 0, seconds: 0 })).toBe(false);
+    expect(isValidTimerDuration({ hours: 0, minutes: 0, seconds: 1 })).toBe(true);
   });
 });
