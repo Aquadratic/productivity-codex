@@ -3,7 +3,7 @@ import type { Task } from './types';
 import { normalizeOccurrenceKey } from './date';
 import { nextOccurrence } from './recurrence';
 
-export function completeTaskOccurrence(task: Task, occurrenceAt = task.dueAt ?? new Date().toISOString()): Task {
+export function completeTaskOccurrence(task: Task, occurrenceAt = task.endsAt ?? task.dueAt ?? new Date().toISOString()): Task {
   const occurrenceKey = normalizeOccurrenceKey(occurrenceAt);
   const existing = task.completedOccurrences.some((record) => record.occurrenceKey === occurrenceKey);
   const completedOccurrences = existing
@@ -27,7 +27,7 @@ export function completeTaskOccurrence(task: Task, occurrenceAt = task.dueAt ?? 
   };
 }
 
-export function toggleTaskCompletion(task: Task, occurrenceAt = task.dueAt ?? new Date().toISOString()): Task {
+export function toggleTaskCompletion(task: Task, occurrenceAt = task.endsAt ?? task.dueAt ?? new Date().toISOString()): Task {
   const occurrenceKey = normalizeOccurrenceKey(occurrenceAt);
   const isCompleted = task.completedOccurrences.some((record) => record.occurrenceKey === occurrenceKey) || task.status === 'completed';
 
@@ -44,16 +44,17 @@ export function toggleTaskCompletion(task: Task, occurrenceAt = task.dueAt ?? ne
 }
 
 export function getNextTaskOccurrence(task: Task, after = new Date()): Date | undefined {
-  if (!task.dueAt) {
+  const endsAt = task.endsAt ?? task.dueAt;
+  if (!endsAt) {
     return undefined;
   }
 
   if (!task.recurrenceRule) {
-    const due = parseISO(task.dueAt);
+    const due = parseISO(endsAt);
     return isAfter(due, after) ? due : undefined;
   }
 
-  return nextOccurrence(parseISO(task.dueAt), task.recurrenceRule, after);
+  return nextOccurrence(parseISO(endsAt), task.recurrenceRule, after);
 }
 
 export function isTaskOccurrenceCompleted(task: Task, occurrenceAt: string): boolean {
@@ -61,7 +62,7 @@ export function isTaskOccurrenceCompleted(task: Task, occurrenceAt: string): boo
   return task.completedOccurrences.some((record) => record.occurrenceKey === occurrenceKey);
 }
 
-export function getTaskCompletionTime(task: Task, occurrenceAt = task.dueAt ?? task.updatedAt): string | undefined {
+export function getTaskCompletionTime(task: Task, occurrenceAt = task.endsAt ?? task.dueAt ?? task.updatedAt): string | undefined {
   const occurrenceKey = normalizeOccurrenceKey(occurrenceAt);
   return task.completedOccurrences.find((record) => record.occurrenceKey === occurrenceKey)?.completedAt;
 }

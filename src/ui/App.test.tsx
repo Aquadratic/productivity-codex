@@ -15,15 +15,15 @@ describe('App', () => {
 
     expect(await screen.findByText('Dashboard')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Tasks/i }));
-    expect(screen.queryByPlaceholderText('Task title')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Task Title')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Add task/i }));
-    await userEvent.type(screen.getByPlaceholderText('Task title'), 'Take medication');
+    await userEvent.type(screen.getByPlaceholderText('Task Title'), 'Take medication');
     const addTaskButtons = screen.getAllByRole('button', { name: /Add task/i });
     await userEvent.click(addTaskButtons[addTaskButtons.length - 1]);
 
     await waitFor(() => expect(screen.getByText('Take medication')).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: /Mark Take medication complete/i }));
-    await userEvent.click(screen.getByRole('button', { name: /^completed$/i }));
+    await userEvent.click(screen.getByTitle('Expand list'));
     await userEvent.click(await screen.findByRole('button', { name: /Mark Take medication incomplete/i }));
     await userEvent.click(screen.getByRole('button', { name: /^today$/i }));
     expect(await screen.findByRole('button', { name: /Mark Take medication complete/i })).toBeInTheDocument();
@@ -46,6 +46,8 @@ describe('App', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Complete/i }));
     expect(await screen.findByText(/Timer complete/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Close$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Stop sound/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Start another/i }));
     expect(await screen.findByText(/Choose a session/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Stop/i })).not.toBeInTheDocument();
@@ -58,7 +60,9 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: /Calendar/i }));
 
     await userEvent.click(screen.getByRole('button', { name: /New event/i }));
-    await userEvent.type(screen.getByPlaceholderText('Event title'), 'Math class');
+    expect(screen.getByLabelText(/All Day/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Importance/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText('Event Title'), 'Math class');
     const startDateInput = document.querySelector('input[name="startDate"]') as HTMLInputElement;
     const endDateInput = document.querySelector('input[name="endDate"]') as HTMLInputElement;
     await userEvent.clear(startDateInput);
@@ -75,7 +79,7 @@ describe('App', () => {
     expect(screen.getByText('Math class')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Mark Math class complete/i }));
     expect(screen.queryByText('Math class')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^completed$/i }));
+    await userEvent.click(screen.getByTitle('Expand list'));
     expect(screen.getByRole('button', { name: /Mark Math class incomplete/i })).toBeInTheDocument();
   });
 
@@ -85,7 +89,7 @@ describe('App', () => {
     await screen.findByText('Dashboard');
     await userEvent.click(screen.getByRole('button', { name: /Tasks/i }));
     await userEvent.click(screen.getByRole('button', { name: /Add task/i }));
-    await userEvent.type(screen.getByPlaceholderText('Task title'), 'Temporary task');
+    await userEvent.type(screen.getByPlaceholderText('Task Title'), 'Temporary task');
     const addTaskButtons = screen.getAllByRole('button', { name: /Add task/i });
     await userEvent.click(addTaskButtons[addTaskButtons.length - 1]);
     expect(await screen.findByText('Temporary task')).toBeInTheDocument();

@@ -24,7 +24,7 @@ export function createRecurrenceRule(input: RecurrenceInput): string {
     count: input.count,
     until: input.until,
     byweekday: input.weekdays?.map(toWeekday),
-    bymonth: input.months && input.months.length > 0 ? input.months : undefined
+    bymonth: input.frequency === 'monthly' && input.months && input.months.length > 0 ? input.months : undefined
   }).toString();
 }
 

@@ -26,6 +26,15 @@ export function durationPartsToSeconds(parts: TimerDurationParts): number {
     + Math.max(0, Math.floor(parts.seconds));
 }
 
+export function secondsToDurationParts(seconds: number): TimerDurationParts {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  return {
+    hours: Math.floor(safeSeconds / 3600),
+    minutes: Math.floor((safeSeconds % 3600) / 60),
+    seconds: safeSeconds % 60
+  };
+}
+
 export function isValidTimerDuration(parts: TimerDurationParts): boolean {
   return durationPartsToSeconds(parts) > 0;
 }

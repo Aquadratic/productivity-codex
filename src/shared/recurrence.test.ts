@@ -98,4 +98,15 @@ describe('recurrence', () => {
     expect(rule).toContain('FREQ=YEARLY');
     expect(rule).toContain('UNTIL=20281231T235959Z');
   });
+
+  it('ignores selected months for yearly recurrence', () => {
+    const rule = createCustomRecurrenceRule({
+      frequency: 'yearly',
+      interval: 1,
+      months: [1, 6, 12]
+    });
+
+    expect(rule).toContain('FREQ=YEARLY');
+    expect(rule).not.toContain('BYMONTH');
+  });
 });

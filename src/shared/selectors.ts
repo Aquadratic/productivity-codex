@@ -5,6 +5,8 @@ import { getTaskCompletionTime } from './tasks';
 import { normalizeOccurrenceKey } from './date';
 
 export type PlannerItemKind = 'task' | 'event';
+export type PlannerFilter = 'all' | 'today' | 'upcoming' | 'overdue' | 'completed';
+export type TaskListTab = 'all' | 'today' | 'upcoming' | 'overdue';
 
 export interface PlannerListItem {
   id: string;
@@ -14,12 +16,18 @@ export interface PlannerListItem {
   startsAt?: string;
   endsAt?: string;
   dueAt?: string;
+  allDay?: boolean;
   priority?: Task['priority'];
   importance?: CalendarEvent['importance'];
   status?: Task['status'];
   completed: boolean;
   completedAt?: string;
   source: Task | CalendarEvent;
+}
+
+export interface PlannerListGroups {
+  active: PlannerListItem[];
+  completed: PlannerListItem[];
 }
 
 export interface CalendarViewEvent {
@@ -79,36 +87,31 @@ export function getTodayItems(state: PlannerState, now = new Date()): PlannerLis
 
 export function getTaskListItems(
   state: PlannerState,
-  filter: 'today' | 'upcoming' | 'overdue' | 'completed',
+  filter: PlannerFilter,
   now = new Date()
 ): PlannerListItem[] {
-  const taskItems = tasksToItems(state.tasks).filter((item) => {
-    if (filter === 'completed') return item.completed;
-    if (item.completed) return false;
-    if (filter === 'today') return Boolean(item.dueAt && isSameDay(parseISO(item.dueAt), now));
-    if (filter === 'overdue') return Boolean(item.dueAt && isBefore(parseISO(item.dueAt), now));
-    return true;
-  });
+  const groups = getTaskListGroups(state, filter === 'completed' ? 'all' : filter, now);
+  return filter === 'completed' ? groups.completed : groups.active;
+}
 
-  if (filter === 'completed') {
-    const completedEvents = state.settings.showCalendarEventsInTasks ? eventsToItems(state.events).filter((item) => item.completed) : [];
-    return [...taskItems, ...completedEvents].sort(compareItemsByCompletedTime);
-  }
+export function getTaskListGroups(
+  state: PlannerState,
+  filter: PlannerFilter,
+  now = new Date()
+): PlannerListGroups {
+  const tab = filter === 'completed' ? 'all' : filter;
+  const taskItems = tasksToItems(state.tasks);
+  const eventItems = state.settings.showCalendarEventsInTasks ? eventsToItems(state.events) : [];
 
-  if (!state.settings.showCalendarEventsInTasks) {
-    return taskItems.sort(compareItemsByTime);
-  }
+  const active = [...taskItems, ...eventItems]
+    .filter((item) => !item.completed && matchesTabFilter(item, tab, now))
+    .sort(compareItemsByTime);
 
-  const eventItems = eventsToItems(state.events).filter((item) => {
-    if (!item.startsAt) return false;
-    if (item.completed) return false;
-    const startsAt = parseISO(item.startsAt);
-    if (filter === 'today') return isSameDay(startsAt, now);
-    if (filter === 'overdue') return isBefore(startsAt, now);
-    return !isBefore(startsAt, now);
-  });
+  const completed = [...taskItems, ...eventItems]
+    .filter((item) => item.completed && matchesTabFilter(item, tab, now))
+    .sort(compareItemsByCompletedTime);
 
-  return [...taskItems, ...eventItems].sort(compareItemsByTime);
+  return { active, completed };
 }
 
 function tasksToItems(tasks: Task[]): PlannerListItem[] {
@@ -117,7 +120,10 @@ function tasksToItems(tasks: Task[]): PlannerListItem[] {
     kind: 'task',
     title: task.title,
     notes: task.notes,
+    startsAt: task.startsAt,
+    endsAt: task.endsAt ?? task.dueAt,
     dueAt: task.dueAt,
+    allDay: task.allDay,
     priority: task.priority,
     status: task.status,
     completed: task.status === 'completed',
@@ -134,6 +140,7 @@ function eventsToItems(events: CalendarEvent[]): PlannerListItem[] {
     notes: event.notes,
     startsAt: event.startsAt,
     endsAt: event.endsAt,
+    allDay: event.allDay,
     importance: event.importance,
     completed: isEventOccurrenceCompleted(event),
     completedAt: event.completedOccurrences.find((record) => record.occurrenceKey === normalizeOccurrenceKey(event.startsAt))?.completedAt ?? event.completedOccurrences[0]?.completedAt,
@@ -142,9 +149,19 @@ function eventsToItems(events: CalendarEvent[]): PlannerListItem[] {
 }
 
 function compareItemsByTime(a: PlannerListItem, b: PlannerListItem): number {
-  return (a.startsAt ?? a.dueAt ?? '').localeCompare(b.startsAt ?? b.dueAt ?? '');
+  return (a.startsAt ?? a.endsAt ?? a.dueAt ?? '').localeCompare(b.startsAt ?? b.endsAt ?? b.dueAt ?? '');
 }
 
 function compareItemsByCompletedTime(a: PlannerListItem, b: PlannerListItem): number {
   return (b.completedAt ?? '').localeCompare(a.completedAt ?? '');
+}
+
+function matchesTabFilter(item: PlannerListItem, filter: TaskListTab, now: Date): boolean {
+  if (filter === 'all') return true;
+  const value = item.startsAt ?? item.endsAt ?? item.dueAt;
+  if (!value) return false;
+  const date = parseISO(value);
+  if (filter === 'today') return isSameDay(date, now);
+  if (filter === 'overdue') return isBefore(date, now);
+  return !isBefore(date, now);
 }

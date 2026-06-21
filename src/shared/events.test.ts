@@ -10,7 +10,7 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     startsAt: '2026-06-20T15:00:00.000Z',
     endsAt: '2026-06-20T16:00:00.000Z',
     allDay: false,
-    importance: 'important',
+    importance: 'high',
     color: '#5578a6',
     reminders: [],
     completedOccurrences: [],

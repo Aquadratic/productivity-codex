@@ -12,7 +12,8 @@ export function buildEventReminders(event: CalendarEvent): Reminder[] {
 }
 
 export function buildTaskReminders(task: Task): Reminder[] {
-  if (!task.dueAt) {
+  const triggerBase = task.endsAt ?? task.dueAt;
+  if (!triggerBase) {
     return [];
   }
 
@@ -21,7 +22,7 @@ export function buildTaskReminders(task: Task): Reminder[] {
     targetType: 'task',
     targetId: task.id,
     title: task.title,
-    triggerAt: subMinutes(parseISO(task.dueAt!), offset.minutesBefore).toISOString()
+    triggerAt: subMinutes(parseISO(triggerBase), offset.minutesBefore).toISOString()
   }));
 }
 

@@ -10,6 +10,7 @@ describe('reminders', () => {
       notes: '',
       status: 'open',
       priority: 'high',
+      allDay: false,
       dueAt: '2026-06-20T14:00:00.000Z',
       reminders: [{ minutesBefore: 30 }],
       completedOccurrences: [],
@@ -18,6 +19,25 @@ describe('reminders', () => {
     };
 
     expect(buildTaskReminders(task)[0].triggerAt).toBe('2026-06-20T13:30:00.000Z');
+  });
+
+  it('creates task reminders from task end time when present', () => {
+    const task: Task = {
+      id: 'task_1',
+      title: 'Take medication',
+      notes: '',
+      status: 'open',
+      priority: 'high',
+      startsAt: '2026-06-20T14:00:00.000Z',
+      endsAt: '2026-06-20T15:00:00.000Z',
+      allDay: false,
+      reminders: [{ minutesBefore: 30 }],
+      completedOccurrences: [],
+      createdAt: '2026-06-20T00:00:00.000Z',
+      updatedAt: '2026-06-20T00:00:00.000Z'
+    };
+
+    expect(buildTaskReminders(task)[0].triggerAt).toBe('2026-06-20T14:30:00.000Z');
   });
 
   it('returns missed reminders within the startup window', () => {

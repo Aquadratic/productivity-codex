@@ -143,12 +143,19 @@ export function usePlanner() {
 
   const startTimer = useCallback((mode: TimerMode, durationSeconds: number) => {
     setCompletedTimer(undefined);
+    commitState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        lastTimerDurationSeconds: durationSeconds
+      }
+    }));
     setActiveTimer({
       mode,
       startedAt: Date.now(),
       durationSeconds
     });
-  }, []);
+  }, [commitState]);
 
   const stopTimer = useCallback((completed: boolean) => {
     if (!activeTimer) {
@@ -165,7 +172,7 @@ export function usePlanner() {
     };
     commitState((current) => ({ ...current, timerSessions: [session, ...current.timerSessions] }));
     if (completed && ports) {
-      ports.notifications.send(activeTimer.mode === 'focus' ? 'Focus complete' : 'Break complete', 'Your timer has finished.');
+      ports.notifications.send(activeTimer.mode === 'focus' ? 'Focus Complete' : 'Break Complete', 'Your timer has finished.');
     }
     if (completed) {
       setCompletedTimer(session);

@@ -1,6 +1,6 @@
 export type ID = string;
 
-export type Importance = 'normal' | 'important';
+export type Importance = 'low' | 'normal' | 'high';
 export type TaskPriority = 'low' | 'normal' | 'high';
 export type TaskStatus = 'open' | 'completed';
 export type TimerMode = 'focus' | 'break';
@@ -38,7 +38,10 @@ export interface Task {
   notes: string;
   status: TaskStatus;
   priority: TaskPriority;
+  startsAt?: string;
+  endsAt?: string;
   dueAt?: string;
+  allDay: boolean;
   recurrenceRule?: string;
   reminders: ReminderOffset[];
   completedOccurrences: CompletionRecord[];
@@ -84,6 +87,7 @@ export interface AppSettings {
   soundsEnabled: boolean;
   soundVolume: number;
   timerCompleteSound: string;
+  lastTimerDurationSeconds: number;
 }
 
 export const defaultSettings: AppSettings = {
@@ -96,5 +100,6 @@ export const defaultSettings: AppSettings = {
   upcomingRange: 'all',
   soundsEnabled: true,
   soundVolume: 0.8,
-  timerCompleteSound: 'gentle-chime'
+  timerCompleteSound: 'classic-alarm',
+  lastTimerDurationSeconds: 1500
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTaskListItems, getUpcomingItems } from './selectors';
+import { getTaskListGroups, getTaskListItems, getUpcomingItems } from './selectors';
 import { defaultSettings, type PlannerState } from './types';
 
 function state(overrides: Partial<PlannerState> = {}): PlannerState {
@@ -12,7 +12,7 @@ function state(overrides: Partial<PlannerState> = {}): PlannerState {
         startsAt: '2026-06-20T15:00:00.000Z',
         endsAt: '2026-06-20T16:00:00.000Z',
         allDay: false,
-        importance: 'important',
+        importance: 'high',
         color: '#5578a6',
         reminders: [],
         completedOccurrences: [],
@@ -27,6 +27,7 @@ function state(overrides: Partial<PlannerState> = {}): PlannerState {
         notes: '',
         status: 'open',
         priority: 'high',
+        allDay: false,
         dueAt: '2026-06-20T14:00:00.000Z',
         reminders: [],
         completedOccurrences: [],
@@ -103,5 +104,36 @@ describe('selectors', () => {
       'Homework',
       'Class'
     ]);
+  });
+
+  it('groups task tabs into active and completed buckets', () => {
+    const grouped = getTaskListGroups(
+      state({
+        tasks: [
+          ...state().tasks,
+          {
+            ...state().tasks[0],
+            id: 'task_2',
+            title: 'Done later',
+            status: 'completed',
+            startsAt: '2026-06-21T14:00:00.000Z',
+            endsAt: '2026-06-21T15:00:00.000Z',
+            dueAt: undefined,
+            completedOccurrences: [{ occurrenceKey: '2026-06-21T15:00:00.000Z', completedAt: '2026-06-20T19:00:00.000Z' }]
+          },
+          {
+            ...state().tasks[0],
+            id: 'task_3',
+            title: 'Unscheduled',
+            dueAt: undefined
+          }
+        ]
+      }),
+      'upcoming',
+      new Date('2026-06-20T13:00:00.000Z')
+    );
+
+    expect(grouped.active.map((item) => item.title)).toEqual(['Homework', 'Class']);
+    expect(grouped.completed.map((item) => item.title)).toEqual(['Done later']);
   });
 });

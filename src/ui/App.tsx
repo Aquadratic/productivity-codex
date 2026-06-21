@@ -5,7 +5,7 @@ import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import { addMinutes, format, parseISO, setHours, setMinutes } from 'date-fns';
+import { addMinutes, format, parseISO } from 'date-fns';
 import {
   Bell,
   CalendarDays,
@@ -25,12 +25,12 @@ import {
   X
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { CalendarEvent, RepeatFrequency, Task, TimerMode, UpcomingRange } from '../shared/types';
+import type { CalendarEvent, Importance, RepeatFrequency, Task, TimerMode, UpcomingRange } from '../shared/types';
 import { createCustomRecurrenceRule } from '../shared/recurrence';
 import { validateEventTime } from '../shared/events';
 import { getSoundChoice, soundChoices } from '../shared/sounds';
-import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration } from '../shared/timer';
-import { getTaskListItems, getUpcomingItems, type PlannerListItem } from '../shared/selectors';
+import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration, secondsToDurationParts } from '../shared/timer';
+import { getTaskListGroups, getUpcomingItems, type PlannerFilter, type PlannerListItem } from '../shared/selectors';
 import { usePlanner, type View } from './usePlanner';
 
 const navItems: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [
@@ -58,8 +58,25 @@ type EventDraft = {
   start: string;
   endDate: string;
   end: string;
-  important: boolean;
+  allDay: boolean;
+  importance: Importance;
   color: string;
+};
+
+type TaskDraft = {
+  title: string;
+  notes: string;
+  hasStartTime: boolean;
+  startDate: string;
+  startHour: string;
+  startMinute: string;
+  startMeridiem: 'AM' | 'PM';
+  endDate: string;
+  endHour: string;
+  endMinute: string;
+  endMeridiem: 'AM' | 'PM';
+  allDay: boolean;
+  priority: Task['priority'];
 };
 
 const eventColors = ['#5578a6', '#23693c', '#8f4d32', '#7b4fa3', '#b2671d', '#2f7f7b'];
@@ -148,15 +165,15 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         </div>
         <button className="primary-action" onClick={() => planner.setView('timer')} type="button">
           <Play size={18} />
-          Start focus
+          Start Focus
         </button>
       </header>
       <div className="dashboard-grid">
-        <MetricCard label="Events today" value={todaysEvents.length} />
-        <MetricCard label="Tasks today" value={todaysTasks.length} />
+        <MetricCard label="Events Today" value={todaysEvents.length} />
+        <MetricCard label="Tasks Today" value={todaysTasks.length} />
         <MetricCard label="Upcoming" value={upcoming.length} />
-        <MetricCard label="Current time" value={format(now, 'h:mm:ss a')} />
-        <ListPanel title="Today" detail="Schedule and task list" empty="Nothing due today.">
+        <MetricCard label="Current Time" value={format(now, 'h:mm:ss a')} />
+        <ListPanel title="Today" detail="Schedule And Task List" empty="Nothing due today." roomy>
           {planner.todayItems.map((item) => (
             <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} />
           ))}
@@ -167,15 +184,15 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           empty="No upcoming events or tasks."
           action={
             <select
-              aria-label="Upcoming range"
+              aria-label="Upcoming Range"
               className="compact-select"
               value={range}
               onChange={(event) => setRange(event.target.value as UpcomingRange)}
             >
-              <option value="all">All upcoming</option>
+              <option value="all">All Upcoming</option>
               <option value="today">Today</option>
-              <option value="7days">7 days</option>
-              <option value="30days">30 days</option>
+              <option value="7days">7 Days</option>
+              <option value="30days">30 Days</option>
             </select>
           }
         >
@@ -194,7 +211,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [editingEventId, setEditingEventId] = useState<string>();
 
   const openDraft = (start: Date, end?: Date) => {
-    setDraft(toDraft(start, end ?? addMinutes(start, 15)));
+    setDraft(toDraft(start, end ?? addMinutes(start, 30)));
     setEditingEventId(undefined);
     setDrawerOpen(true);
   };
@@ -220,14 +237,14 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       ...planner.calendarEvents,
       {
         id: 'draft-preview',
-        title: draft.title || 'New event',
+        title: draft.title || 'New Event',
         start: previewStart.toISOString(),
         end: previewEnd.toISOString(),
-        allDay: false,
+        allDay: draft.allDay,
         classNames: ['draft-preview-event'],
         backgroundColor: draft.color,
         borderColor: draft.color,
-        extendedProps: { importance: draft.important ? 'important' as const : 'normal' as const, notes: draft.notes }
+        extendedProps: { importance: draft.importance, notes: draft.notes }
       }
     ];
   }, [draft, drawerOpen, planner.calendarEvents]);
@@ -237,11 +254,11 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       <header className="view-header">
         <div>
           <p className="eyebrow">Calendar</p>
-          <h2>Plan by time</h2>
+          <h2>Plan By Time</h2>
         </div>
         <button className="primary-action" onClick={() => { setEditingEventId(undefined); setDrawerOpen(true); }} type="button">
           <CalendarDays size={18} />
-          New event
+          New Event
         </button>
       </header>
       <div className="calendar-layout single">
@@ -268,8 +285,8 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             selectable
             select={(selection) => openDraft(selection.start, selection.end)}
-            slotDuration="01:00:00"
-            snapDuration="00:15:00"
+            slotDuration="00:30:00"
+            snapDuration="00:30:00"
             scrollTime="06:00:00"
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
@@ -306,38 +323,55 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 }
 
 function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
-  const [filter, setFilter] = useState<'today' | 'upcoming' | 'overdue' | 'completed'>('today');
+  const [filter, setFilter] = useState<PlannerFilter>('all');
   const [taskFormOpen, setTaskFormOpen] = useState(false);
-  const items = useMemo(() => getTaskListItems(planner.state, filter), [filter, planner.state]);
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date()));
+  const groups = useMemo(() => getTaskListGroups(planner.state, filter), [filter, planner.state]);
 
   return (
     <div className="view-stack full-height-view">
       <header className="view-header">
         <div>
           <p className="eyebrow">Tasks</p>
-          <h2>Work queue</h2>
+          <h2>Work Queue</h2>
         </div>
         <div className="header-actions">
-          <SegmentedControl options={['today', 'upcoming', 'overdue', 'completed']} value={filter} onChange={(value) => setFilter(value as typeof filter)} />
+          <SegmentedControl options={['all', 'today', 'upcoming', 'overdue']} value={filter} onChange={(value) => setFilter(value as PlannerFilter)} />
           <button className="primary-action" onClick={() => setTaskFormOpen(true)} type="button">
             <ListTodo size={18} />
-            Add task
+            Add Task
           </button>
         </div>
       </header>
       <div className="task-layout single">
         <ListPanel
-          title={planner.state.settings.showCalendarEventsInTasks ? 'Tasks and calendar events' : 'Tasks'}
+          title={planner.state.settings.showCalendarEventsInTasks ? 'Tasks And Calendar Events' : 'Tasks'}
           detail={planner.state.settings.showCalendarEventsInTasks ? 'Events can be checked off here without becoming tasks.' : 'Calendar events are hidden here.'}
           empty="Nothing in this list."
         >
-          {items.map((item) => (
+          {groups.active.map((item) => (
             <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} />
           ))}
         </ListPanel>
+        <ListPanel title="Completed" detail="Finished Items For This Tab" empty="Nothing completed here yet." initiallyCollapsed>
+          {groups.completed.map((item) => (
+            <PlannerItemRow item={item} key={`completed-${item.kind}-${item.id}`} planner={planner} />
+          ))}
+        </ListPanel>
         {taskFormOpen && (
-          <div className="drawer-backdrop" role="presentation">
-            <TaskForm planner={planner} onClose={() => setTaskFormOpen(false)} />
+          <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setTaskFormOpen(false);
+          }}>
+            <TaskForm
+              draft={taskDraft}
+              planner={planner}
+              onChange={setTaskDraft}
+              onClose={() => setTaskFormOpen(false)}
+              onSaved={() => {
+                setTaskFormOpen(false);
+                setTaskDraft(toTaskDraft(new Date()));
+              }}
+            />
           </div>
         )}
       </div>
@@ -347,7 +381,7 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 
 function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [mode, setMode] = useState<TimerMode>('focus');
-  const [duration, setDuration] = useState({ hours: 0, minutes: 25, seconds: 0 });
+  const [duration, setDuration] = useState(() => secondsToDurationParts(planner.state.settings.lastTimerDurationSeconds));
   const [now, setNow] = useState(Date.now());
   const loopingAudio = useRef<HTMLAudioElement>();
   const snapshot = planner.activeTimer ? getTimerSnapshot(planner.activeTimer, now) : undefined;
@@ -387,27 +421,29 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     planner.dismissCompletedTimer();
   };
 
+  const startTimer = () => {
+    const durationSeconds = durationPartsToSeconds(duration);
+    planner.updateSettings({ ...settings, lastTimerDurationSeconds: durationSeconds });
+    planner.startTimer(mode, durationSeconds);
+  };
+
   if (planner.completedTimer) {
     return (
       <div className="timer-screen">
         <section className="panel timer-panel completion-screen">
-          <p className="eyebrow">Timer complete</p>
-          <h2>{planner.completedTimer.mode === 'focus' ? 'Focus session finished' : 'Break finished'}</h2>
+          <p className="eyebrow">Timer Complete</p>
+          <h2>{planner.completedTimer.mode === 'focus' ? 'Focus Session Finished' : 'Break Finished'}</h2>
           <div className="timer-display">{formatTimer(planner.completedTimer.durationSeconds)}</div>
           <p className="timer-meta">Nice work. Choose another sound, preview it, or start another session.</p>
           <SoundControls planner={planner} />
           <div className="timer-actions">
             <button className="secondary-action" onClick={stopCompleteSound} type="button">
               <Volume2 size={18} />
-              Stop sound
-            </button>
-            <button className="secondary-action" onClick={dismissCompletion} type="button">
-              <X size={18} />
-              Close
+              Stop Sound
             </button>
             <button className="primary-action" onClick={dismissCompletion} type="button">
               <Play size={18} />
-              Start another
+              Start Another
             </button>
           </div>
         </section>
@@ -419,7 +455,7 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     <div className="timer-screen">
       <section className={planner.activeTimer ? 'panel timer-panel active-session' : 'panel timer-panel'}>
         <p className="eyebrow">Timer</p>
-        <h2>{planner.activeTimer ? `${planner.activeTimer.mode === 'focus' ? 'Focus' : 'Break'} session` : 'Choose a session'}</h2>
+        <h2>{planner.activeTimer ? `${planner.activeTimer.mode === 'focus' ? 'Focus' : 'Break'} Session` : 'Choose a Session'}</h2>
         {planner.activeTimer && snapshot ? (
           <>
             <div className="timer-display" aria-live="polite">{formatTimer(snapshot.remainingSeconds)}</div>
@@ -456,9 +492,9 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
               </label>
             </div>
             <SoundControls planner={planner} />
-            <button className="primary-action" disabled={!canStart} onClick={() => planner.startTimer(mode, durationPartsToSeconds(duration))} type="button">
+            <button className="primary-action" disabled={!canStart} onClick={startTimer} type="button">
               <Play size={18} />
-              Start timer
+              Start Timer
             </button>
           </>
         )}
@@ -471,7 +507,7 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const settings = planner.state.settings;
 
   return (
-    <div className="view-stack">
+    <div className="settings-screen">
       <header className="view-header">
         <div>
           <p className="eyebrow">Preferences</p>
@@ -488,7 +524,7 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           />
         </label>
         <label className="toggle-row">
-          <span><Clock3 size={18} /> Start with Windows</span>
+          <span><Clock3 size={18} /> Start With Windows</span>
           <input
             checked={settings.autostartEnabled}
             onChange={(event) => planner.updateSettings({ ...settings, autostartEnabled: event.target.checked })}
@@ -496,7 +532,7 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           />
         </label>
         <label className="toggle-row">
-          <span><ListTodo size={18} /> Show calendar events in Tasks</span>
+          <span><ListTodo size={18} /> Show Calendar Events In Tasks</span>
           <input
             checked={settings.showCalendarEventsInTasks}
             onChange={(event) => planner.updateSettings({ ...settings, showCalendarEventsInTasks: event.target.checked })}
@@ -504,18 +540,9 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           />
         </label>
         <SoundControls planner={planner} />
-        <label className="field">
-          <span>Default reminder minutes</span>
-          <input
-            min="0"
-            type="number"
-            value={settings.defaultReminderMinutes}
-            onChange={(event) => planner.updateSettings({ ...settings, defaultReminderMinutes: Number(event.target.value) })}
-          />
-        </label>
         <button className="danger-action" onClick={planner.resetPlanner} type="button">
           <RotateCcw size={18} />
-          Reset test data
+          Reset Test Data
         </button>
       </section>
     </div>
@@ -543,8 +570,8 @@ function EventForm({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const startsAt = new Date(`${draft.startDate}T${draft.start}`).toISOString();
-    const endsAt = new Date(`${draft.endDate}T${draft.end}`).toISOString();
+    const startsAt = new Date(`${draft.startDate}T${draft.allDay ? '00:00' : draft.start}`).toISOString();
+    const endsAt = new Date(`${draft.endDate}T${draft.allDay ? '23:59' : draft.end}`).toISOString();
     const validationError = validateEventTime({ startsAt, endsAt });
 
     if (validationError) {
@@ -557,11 +584,11 @@ function EventForm({
       notes: draft.notes,
       startsAt,
       endsAt,
-      allDay: false,
-      importance: draft.important ? 'important' as const : 'normal' as const,
+      allDay: draft.allDay,
+      importance: draft.importance,
       color: draft.color,
       recurrenceRule: buildRecurrenceFromForm(form),
-      reminders: [{ minutesBefore: planner.state.settings.defaultReminderMinutes }]
+      reminders: []
     };
 
     if (editingEventId) {
@@ -574,83 +601,190 @@ function EventForm({
 
   return (
     <form className="panel form-panel drawer-panel" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}>
-      <DrawerHeader title={editingEventId ? 'Edit event' : 'New event'} detail="Use 15-minute precision, multi-day times, colors, and custom repeats." onClose={onClose} />
-      <input name="title" placeholder="Event title" required value={draft.title} onChange={(event) => setField('title', event.target.value)} />
+      <DrawerHeader title={editingEventId ? 'Edit Event' : 'New Event'} detail="Use 30-minute precision, multi-day times, colors, and custom repeats." onClose={onClose} />
+      <input name="title" placeholder="Event Title" required value={draft.title} onChange={(event) => setField('title', event.target.value)} />
+      <label className="checkbox-row">
+        <input name="allDay" type="checkbox" checked={draft.allDay} onChange={(event) => setField('allDay', event.target.checked)} />
+        <span>All Day</span>
+      </label>
       <div className="form-grid">
         <label className="field">
-          <span>Start date</span>
+          <span>Start Date</span>
           <input name="startDate" type="date" required value={draft.startDate} onChange={(event) => setField('startDate', event.target.value)} />
         </label>
         <label className="field">
-          <span>Start time</span>
-          <input name="start" step="900" type="time" required value={draft.start} onChange={(event) => setField('start', event.target.value)} />
+          <span>Start Time</span>
+          <input disabled={draft.allDay} name="start" step="1800" type="time" required value={draft.start} onChange={(event) => setField('start', event.target.value)} />
         </label>
       </div>
       <div className="form-grid">
         <label className="field">
-          <span>End date</span>
+          <span>End Date</span>
           <input name="endDate" type="date" required value={draft.endDate} onChange={(event) => setField('endDate', event.target.value)} />
         </label>
         <label className="field">
-          <span>End time</span>
-          <input name="end" step="900" type="time" required value={draft.end} onChange={(event) => setField('end', event.target.value)} />
+          <span>End Time</span>
+          <input disabled={draft.allDay} name="end" step="1800" type="time" required value={draft.end} onChange={(event) => setField('end', event.target.value)} />
         </label>
       </div>
       <RecurrenceFields />
       <textarea name="notes" placeholder="Notes" value={draft.notes} onChange={(event) => setField('notes', event.target.value)} />
-      <label className="checkbox-row">
-        <input name="important" type="checkbox" checked={draft.important} onChange={(event) => setField('important', event.target.checked)} />
-        <span>Important</span>
+      <label className="field">
+        <span>Importance</span>
+        <select name="importance" value={draft.importance} onChange={(event) => setField('importance', event.target.value as CalendarEvent['importance'])}>
+          <option value="low">Low</option>
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+        </select>
       </label>
       <ColorPicker value={draft.color} onChange={(color) => setField('color', color)} />
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary-action" type="submit">{editingEventId ? 'Save event' : 'Add event'}</button>
+      <div className="form-actions">
+        <button className="secondary-action" type="button" onClick={() => onChange(toDraft(new Date()))}>
+          <RotateCcw size={18} />
+          Reset
+        </button>
+        <button className="primary-action" type="submit">{editingEventId ? 'Save Event' : 'Add Event'}</button>
+      </div>
       {editingEventId && (
         <button className="danger-action" type="button" onClick={() => {
           planner.deleteEvent(editingEventId);
           onSaved();
         }}>
           <Trash2 size={18} />
-          Delete event
+          Delete Event
         </button>
       )}
     </form>
   );
 }
 
-function TaskForm({ planner, onClose }: { planner: ReturnType<typeof usePlanner>; onClose: () => void }) {
+function TaskForm({
+  draft,
+  planner,
+  onChange,
+  onClose,
+  onSaved
+}: {
+  draft: TaskDraft;
+  planner: ReturnType<typeof usePlanner>;
+  onChange: (draft: TaskDraft) => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [error, setError] = useState<string>();
+  const setField = <K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) => onChange({ ...draft, [key]: value });
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const date = String(form.get('date'));
-    const time = String(form.get('time'));
+    const startsAt = draft.hasStartTime || draft.allDay
+      ? buildDraftDateTime(
+        draft.startDate,
+        draft.startHour,
+        draft.startMinute,
+        draft.startMeridiem,
+        draft.allDay,
+        false
+      ).toISOString()
+      : undefined;
+    const endsAt = buildDraftDateTime(
+      draft.endDate,
+      draft.endHour,
+      draft.endMinute,
+      draft.endMeridiem,
+      draft.allDay,
+      true
+    ).toISOString();
+    const validationError = startsAt ? validateEventTime({ startsAt, endsAt }) : undefined;
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     planner.addTask({
-      title: String(form.get('title')),
-      notes: String(form.get('notes')),
-      priority: String(form.get('priority')) as Task['priority'],
-      dueAt: date ? setMinutes(setHours(new Date(`${date}T00:00:00`), Number(time.slice(0, 2))), Number(time.slice(3, 5))).toISOString() : undefined,
+      title: draft.title,
+      notes: draft.notes,
+      priority: draft.priority,
+      startsAt,
+      endsAt,
+      dueAt: endsAt,
+      allDay: draft.allDay,
       recurrenceRule: buildRecurrenceFromForm(form),
-      reminders: [{ minutesBefore: planner.state.settings.defaultReminderMinutes }]
+      reminders: []
     });
-    onClose();
+    onSaved();
   };
 
   return (
-    <form className="panel form-panel drawer-panel" onSubmit={submit}>
-      <DrawerHeader title="New task" detail="Capture the next clear action." onClose={onClose} />
-      <input name="title" placeholder="Task title" required />
+    <form className="panel form-panel drawer-panel" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}>
+      <DrawerHeader title="New Task" detail="Capture the next clear action." onClose={onClose} />
+      <input name="title" placeholder="Task Title" required value={draft.title} onChange={(event) => setField('title', event.target.value)} />
+      <label className="checkbox-row">
+        <input name="allDay" type="checkbox" checked={draft.allDay} onChange={(event) => setField('allDay', event.target.checked)} />
+        <span>All Day</span>
+      </label>
+      <label className="checkbox-row">
+        <input
+          disabled={draft.allDay}
+          name="hasStartTime"
+          type="checkbox"
+          checked={draft.hasStartTime}
+          onChange={(event) => setField('hasStartTime', event.target.checked)}
+        />
+        <span>Optional Start Time</span>
+      </label>
       <div className="form-grid">
-        <input defaultValue={format(new Date(), 'yyyy-MM-dd')} name="date" type="date" />
-        <input defaultValue="09:00" name="time" step="900" type="time" />
+        <label className="field">
+          <span>Start Date</span>
+          <input disabled={!draft.hasStartTime && !draft.allDay} name="startDate" type="date" value={draft.startDate} onChange={(event) => setField('startDate', event.target.value)} />
+        </label>
+        <TimePartsControl
+          disabled={draft.allDay || !draft.hasStartTime}
+          hour={draft.startHour}
+          minute={draft.startMinute}
+          meridiem={draft.startMeridiem}
+          name="start"
+          onHourChange={(value) => setField('startHour', value)}
+          onMeridiemChange={(value) => setField('startMeridiem', value)}
+          onMinuteChange={(value) => setField('startMinute', value)}
+        />
       </div>
-      <select defaultValue="normal" name="priority">
-        <option value="low">Low</option>
-        <option value="normal">Normal</option>
-        <option value="high">High</option>
-      </select>
+      <div className="form-grid">
+        <label className="field">
+          <span>End Date</span>
+          <input name="endDate" type="date" value={draft.endDate} onChange={(event) => setField('endDate', event.target.value)} />
+        </label>
+        <TimePartsControl
+          disabled={draft.allDay}
+          hour={draft.endHour}
+          minute={draft.endMinute}
+          meridiem={draft.endMeridiem}
+          name="end"
+          onHourChange={(value) => setField('endHour', value)}
+          onMeridiemChange={(value) => setField('endMeridiem', value)}
+          onMinuteChange={(value) => setField('endMinute', value)}
+        />
+      </div>
+      <label className="field">
+        <span>Priority</span>
+        <select name="priority" value={draft.priority} onChange={(event) => setField('priority', event.target.value as Task['priority'])}>
+          <option value="low">Low - Flexible Timing</option>
+          <option value="normal">Normal - Planned Work</option>
+          <option value="high">High - Needs Attention</option>
+        </select>
+      </label>
       <RecurrenceFields />
-      <textarea name="notes" placeholder="Notes" />
-      <button className="primary-action" type="submit">Add task</button>
+      <textarea name="notes" placeholder="Notes" value={draft.notes} onChange={(event) => setField('notes', event.target.value)} />
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="form-actions">
+        <button className="secondary-action" type="button" onClick={() => onChange(toTaskDraft(new Date()))}>
+          <RotateCcw size={18} />
+          Reset
+        </button>
+        <button className="primary-action" type="submit">Add Task</button>
+      </div>
     </form>
   );
 }
@@ -671,7 +805,7 @@ function PlannerItemRow({ item, planner }: { item: PlannerListItem; planner: Ret
         title={item.completed ? 'Mark incomplete' : 'Mark complete'}
         type="button"
       >
-        {item.completed ? <RotateCcw size={16} /> : <Check size={16} />}
+        {item.completed ? <Check size={16} /> : <Square size={16} />}
       </button>
       <div className="item-main">
         <strong>{item.title}</strong>
@@ -679,19 +813,22 @@ function PlannerItemRow({ item, planner }: { item: PlannerListItem; planner: Ret
         {item.completedAt && <span className="completed-time">Completed {format(parseISO(item.completedAt), 'MMM d, h:mm a')}</span>}
       </div>
       <small>{item.kind === 'task' ? item.priority : item.importance}</small>
-      {item.kind === 'event' && item.importance === 'important' && <Star size={16} />}
-      <button className="icon-action" onClick={() => item.kind === 'task' ? planner.deleteTask(item.id) : planner.deleteEvent(item.id)} title={item.kind === 'task' ? 'Delete task' : 'Delete event'} type="button"><Trash2 size={16} /></button>
+      {item.kind === 'event' && item.importance === 'high' && <Star size={16} />}
+      <button className="icon-action" onClick={() => item.kind === 'task' ? planner.deleteTask(item.id) : planner.deleteEvent(item.id)} title={item.kind === 'task' ? 'Delete Task' : 'Delete Event'} type="button"><Trash2 size={16} /></button>
     </div>
   );
 }
 
 function SoundControls({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const settings = planner.state.settings;
+  const selectedSoundId = soundChoices.some((sound) => sound.id === settings.timerCompleteSound)
+    ? settings.timerCompleteSound
+    : soundChoices[0].id;
 
   return (
     <div className="sound-controls">
       <label className="toggle-row">
-        <span><Volume2 size={18} /> Timer sounds</span>
+        <span><Volume2 size={18} /> Timer Sounds</span>
         <input
           checked={settings.soundsEnabled}
           onChange={(event) => planner.updateSettings({ ...settings, soundsEnabled: event.target.checked })}
@@ -700,13 +837,13 @@ function SoundControls({ planner }: { planner: ReturnType<typeof usePlanner> }) 
       </label>
       <div className="form-grid">
         <select
-          aria-label="Timer completion sound"
-          value={settings.timerCompleteSound}
+          aria-label="Timer Completion Sound"
+          value={selectedSoundId}
           onChange={(event) => planner.updateSettings({ ...settings, timerCompleteSound: event.target.value })}
         >
           {soundChoices.map((sound) => <option key={sound.id} value={sound.id}>{sound.label}</option>)}
         </select>
-        <button className="secondary-action" onClick={() => playSound(settings.timerCompleteSound, settings.soundVolume)} type="button">
+        <button className="secondary-action" onClick={() => playSound(selectedSoundId, settings.soundVolume)} type="button">
           <Volume2 size={18} />
           Preview
         </button>
@@ -729,7 +866,7 @@ function SoundControls({ planner }: { planner: ReturnType<typeof usePlanner> }) 
 function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
   return (
     <fieldset className="color-picker">
-      <legend>Event color</legend>
+      <legend>Event Color</legend>
       <div className="color-grid">
         {eventColors.map((color) => (
           <label key={color} style={{ '--swatch-color': color } as CSSProperties}>
@@ -749,7 +886,7 @@ function RecurrenceFields() {
     <fieldset className="recurrence-box">
       <legend>Repeat</legend>
       <select name="frequency" value={frequency} onChange={(event) => setFrequency(event.target.value as RepeatFrequency)}>
-        <option value="none">No repeat</option>
+        <option value="none">No Repeat</option>
         <option value="daily">Daily</option>
         <option value="weekly">Weekly</option>
         <option value="monthly">Monthly</option>
@@ -768,7 +905,7 @@ function RecurrenceFields() {
             </label>
           </div>
           <label className="field">
-            <span>End by (optional)</span>
+            <span>End By (Optional)</span>
             <input name="until" type="date" />
           </label>
           {(frequency === 'daily' || frequency === 'weekly') && (
@@ -781,7 +918,7 @@ function RecurrenceFields() {
               ))}
             </div>
           )}
-          {(frequency === 'monthly' || frequency === 'yearly') && (
+          {frequency === 'monthly' && (
             <div className="month-grid" aria-label="Repeat months">
               {monthOptions.map((month) => (
                 <label key={month.value}>
@@ -806,12 +943,67 @@ function MetricCard({ label, value }: { label: string; value: number | string })
   );
 }
 
-function ListPanel({ title, detail, empty, action, children }: { title: string; detail: string; empty: string; action?: ReactNode; children: ReactNode }) {
+function TimePartsControl({
+  disabled,
+  hour,
+  minute,
+  meridiem,
+  name,
+  onHourChange,
+  onMeridiemChange,
+  onMinuteChange
+}: {
+  disabled: boolean;
+  hour: string;
+  minute: string;
+  meridiem: 'AM' | 'PM';
+  name: string;
+  onHourChange: (value: string) => void;
+  onMeridiemChange: (value: 'AM' | 'PM') => void;
+  onMinuteChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="time-parts" disabled={disabled}>
+      <legend>{name === 'start' ? 'Start Time' : 'End Time'}</legend>
+      <select aria-label={`${name} hour`} value={hour} onChange={(event) => onHourChange(event.target.value)}>
+        {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((value) => (
+          <option key={value} value={value}>{value}</option>
+        ))}
+      </select>
+      <select aria-label={`${name} minute`} value={minute} onChange={(event) => onMinuteChange(event.target.value)}>
+        <option value="00">00</option>
+        <option value="30">30</option>
+      </select>
+      <select aria-label={`${name} meridiem`} value={meridiem} onChange={(event) => onMeridiemChange(event.target.value as 'AM' | 'PM')}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </fieldset>
+  );
+}
+
+function ListPanel({
+  title,
+  detail,
+  empty,
+  action,
+  children,
+  initiallyCollapsed = false,
+  roomy = false
+}: {
+  title: string;
+  detail: string;
+  empty: string;
+  action?: ReactNode;
+  children: ReactNode;
+  initiallyCollapsed?: boolean;
+  roomy?: boolean;
+}) {
   const childArray = Array.isArray(children) ? children : [children];
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!initiallyCollapsed);
 
   return (
-    <section className={`panel feature-panel ${expanded ? 'expanded-list' : ''}`}>
+    <section className={`panel feature-panel ${expanded ? 'expanded-list' : ''} ${roomy ? 'roomy-list' : ''}`}>
       <div className="panel-title-row">
         <PanelTitle title={title} detail={detail} />
         <div className="panel-actions">
@@ -821,7 +1013,7 @@ function ListPanel({ title, detail, empty, action, children }: { title: string; 
           </button>
         </div>
       </div>
-      <div className="item-list">{childArray.length === 0 ? <p className="empty-state">{empty}</p> : children}</div>
+      {expanded && <div className="item-list">{childArray.length === 0 ? <p className="empty-state">{empty}</p> : children}</div>}
     </section>
   );
 }
@@ -856,7 +1048,7 @@ function SegmentedControl({ options, value, onChange }: { options: string[]; val
   );
 }
 
-function toDraft(start: Date, end = addMinutes(start, 15), event?: CalendarEvent): EventDraft {
+function toDraft(start: Date, end = addMinutes(start, 30), event?: CalendarEvent): EventDraft {
   return {
     title: event?.title ?? '',
     notes: event?.notes ?? '',
@@ -864,9 +1056,49 @@ function toDraft(start: Date, end = addMinutes(start, 15), event?: CalendarEvent
     start: format(start, 'HH:mm'),
     endDate: format(end, 'yyyy-MM-dd'),
     end: format(end, 'HH:mm'),
-    important: event?.importance === 'important',
+    allDay: event?.allDay ?? false,
+    importance: event?.importance ?? 'normal',
     color: event?.color ?? eventColors[0]
   };
+}
+
+function toTaskDraft(start: Date): TaskDraft {
+  const end = addMinutes(start, 30);
+  return {
+    title: '',
+    notes: '',
+    hasStartTime: false,
+    startDate: format(start, 'yyyy-MM-dd'),
+    startHour: format(start, 'h'),
+    startMinute: Number(format(start, 'm')) >= 30 ? '30' : '00',
+    startMeridiem: format(start, 'a') as 'AM' | 'PM',
+    endDate: format(end, 'yyyy-MM-dd'),
+    endHour: format(end, 'h'),
+    endMinute: Number(format(end, 'm')) >= 30 ? '30' : '00',
+    endMeridiem: format(end, 'a') as 'AM' | 'PM',
+    allDay: false,
+    priority: 'normal'
+  };
+}
+
+function buildDraftDateTime(
+  date: string,
+  hour: string,
+  minute: string,
+  meridiem: 'AM' | 'PM',
+  allDay: boolean,
+  endOfDay: boolean
+): Date {
+  if (allDay) {
+    return new Date(`${date}T${endOfDay ? '23:59' : '00:00'}:00`);
+  }
+
+  const hourNumber = Number(hour);
+  const normalizedHour = meridiem === 'AM'
+    ? hourNumber % 12
+    : (hourNumber % 12) + 12;
+
+  return new Date(`${date}T${String(normalizedHour).padStart(2, '0')}:${minute}:00`);
 }
 
 function buildRecurrenceFromForm(form: FormData): string | undefined {
@@ -884,7 +1116,7 @@ function buildRecurrenceFromForm(form: FormData): string | undefined {
     count: countValue ? Number(countValue) : undefined,
     until: untilValue ? new Date(`${untilValue}T23:59:59`) : undefined,
     weekdays: (frequency === 'daily' || frequency === 'weekly') && weekdays.length > 0 ? weekdays : undefined,
-    months: (frequency === 'monthly' || frequency === 'yearly') && months.length > 0 ? months : undefined
+    months: frequency === 'monthly' && months.length > 0 ? months : undefined
   });
 }
 

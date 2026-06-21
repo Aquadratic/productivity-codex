@@ -10,6 +10,7 @@ function task(overrides: Partial<Task> = {}): Task {
     notes: '',
     status: 'open',
     priority: 'normal',
+    allDay: false,
     dueAt: '2026-06-20T14:00:00.000Z',
     reminders: [],
     completedOccurrences: [],
