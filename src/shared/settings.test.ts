@@ -7,6 +7,10 @@ describe('settings', () => {
     expect(normalizeSettings({ notificationsEnabled: false }).calendarStartHour).toBe(6);
     expect(normalizeSettings({ notificationsEnabled: false }).calendarEndHour).toBe(22);
     expect(normalizeSettings({ notificationsEnabled: false }).lastTimerDurationSeconds).toBe(1500);
+    expect(normalizeSettings({ notificationsEnabled: false }).sidebarCollapsed).toBe(false);
+    expect(normalizeSettings({ notificationsEnabled: false }).themePreset).toBe('light');
+    expect(normalizeSettings({ notificationsEnabled: false }).themeColors.taskDefault).toBe('#23693c');
+    expect(normalizeSettings({ notificationsEnabled: false }).pomodoroFocusMinutes).toBe(25);
   });
 
   it('normalizes older planner state', () => {

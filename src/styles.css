@@ -1,6 +1,6 @@
 :root {
   color: #17211b;
-  background: #eef1eb;
+  background: var(--color-page, #eef1eb);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -43,20 +43,30 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid #7bbd8b;
+  outline: 3px solid var(--color-accent, #7bbd8b);
   outline-offset: 2px;
 }
 
 .app-shell {
-  background: #eef1eb;
+  --color-sidebar: #18241f;
+  --color-page: #eef1eb;
+  --color-panel: #ffffff;
+  --color-accent: #23693c;
+  --color-task: #23693c;
+  --color-event: #5578a6;
+  background: var(--color-page);
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
   overflow: visible;
 }
 
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 74px minmax(0, 1fr);
+}
+
 .sidebar {
-  background: #18241f;
+  background: var(--color-sidebar);
   color: #f9faf6;
   display: flex;
   flex-direction: column;
@@ -65,6 +75,25 @@ textarea:focus-visible {
   padding: 24px 18px;
   position: sticky;
   top: 0;
+}
+
+.sidebar-toggle {
+  align-self: flex-end;
+}
+
+.sidebar-collapsed .sidebar {
+  align-items: center;
+  padding: 18px 12px;
+}
+
+.sidebar-collapsed .brand-block > div:last-child,
+.sidebar-collapsed .nav-button span {
+  display: none;
+}
+
+.sidebar-collapsed .brand-block,
+.sidebar-collapsed .nav-button {
+  justify-content: center;
 }
 
 .brand-block {
@@ -113,6 +142,10 @@ nav {
   gap: 8px;
 }
 
+.mobile-nav {
+  display: none;
+}
+
 .nav-button,
 .primary-action,
 .secondary-action,
@@ -153,6 +186,26 @@ nav {
   min-width: 0;
   overflow: auto;
   padding: 22px;
+}
+
+.dashboard-header-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.current-time-chip {
+  background: var(--color-panel);
+  border: 1px solid #dbe3d9;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(36, 47, 42, 0.08);
+  color: #17211b;
+  font-weight: 800;
+  min-width: 118px;
+  padding: 9px 12px;
+  text-align: center;
 }
 
 .view-stack {
@@ -212,7 +265,7 @@ nav {
 }
 
 .panel {
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--color-panel) 96%, transparent);
   border: 1px solid #dbe3d9;
   border-radius: 8px;
   box-shadow: 0 16px 35px rgba(36, 47, 42, 0.09);
@@ -281,7 +334,7 @@ nav {
 }
 
 .primary-action {
-  background: #23693c;
+  background: var(--color-accent);
   color: #ffffff;
 }
 
@@ -314,21 +367,38 @@ nav {
   padding-right: 2px;
 }
 
-.list-row {
+.hidden-count {
   align-items: center;
+  background: #f5f7f2;
+  border: 1px dashed #d5dfd2;
+  border-radius: 8px;
+  color: #5d6d62;
+  display: inline-flex;
+  font-weight: 800;
+  margin: 0;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.list-row {
+  align-items: start;
   background: #f8faf5;
   border: 1px solid #e2e9df;
   border-left: 4px solid #7b9f84;
   border-radius: 8px;
   display: grid;
   gap: 10px;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   min-height: 52px;
   padding: 8px 10px;
 }
 
+.list-row > .icon-action:last-child {
+  grid-column: 4;
+}
+
 .list-row.event {
-  border-left-color: #5578a6;
+  border-left-color: var(--color-event);
 }
 
 .list-row.completed {
@@ -346,15 +416,19 @@ nav {
 }
 
 .item-main strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .item-main span,
 .list-row small {
   color: #667466;
   font-size: 0.86rem;
+}
+
+.item-notes {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .item-main .completed-time {
@@ -364,7 +438,7 @@ nav {
 
 .calendar-panel {
   height: calc(100vh - 128px);
-  min-height: 560px;
+  min-height: 520px;
   overflow: hidden;
   padding: 10px;
 }
@@ -372,14 +446,14 @@ nav {
 .calendar-panel .fc {
   height: 100%;
   --fc-border-color: #dbe3d9;
-  --fc-button-bg-color: #23693c;
-  --fc-button-border-color: #23693c;
+  --fc-button-bg-color: var(--color-accent);
+  --fc-button-border-color: var(--color-accent);
   --fc-button-hover-bg-color: #1d5632;
   --fc-button-hover-border-color: #1d5632;
   --fc-button-active-bg-color: #18241f;
   --fc-button-active-border-color: #18241f;
-  --fc-event-bg-color: #5578a6;
-  --fc-event-border-color: #5578a6;
+  --fc-event-bg-color: var(--color-event);
+  --fc-event-border-color: var(--color-event);
   --fc-today-bg-color: rgba(35, 105, 60, 0.09);
 }
 
@@ -443,6 +517,18 @@ nav {
   align-items: center;
   display: flex;
   height: 100%;
+  justify-content: flex-end;
+  transform: translateY(-50%);
+}
+
+.calendar-panel .fc-timegrid-slot-label {
+  vertical-align: top;
+}
+
+.calendar-panel .fc-timegrid-axis-cushion,
+.calendar-panel .fc-timegrid-slot-label-cushion {
+  display: inline-block;
+  padding-right: 8px;
 }
 
 .calendar-panel .fc-daygrid-event-harness,
@@ -488,7 +574,7 @@ nav {
   background: rgba(24, 36, 31, 0.28);
   bottom: 0;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   left: 0;
   padding: 18px;
   position: fixed;
@@ -498,9 +584,35 @@ nav {
 }
 
 .drawer-panel {
-  height: 100%;
+  max-height: min(86vh, 720px);
   max-width: 420px;
   width: min(100%, 420px);
+}
+
+.draggable-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-width: min(94vw, 430px);
+  position: fixed;
+  width: min(94vw, 430px);
+}
+
+.drag-handle {
+  align-items: center;
+  background: var(--color-sidebar);
+  border-radius: 8px 8px 0 0;
+  color: #ffffff;
+  cursor: move;
+  display: flex;
+  justify-content: center;
+  min-height: 28px;
+  touch-action: none;
+}
+
+.draggable-panel .drawer-panel {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  width: 100%;
 }
 
 .form-grid,
@@ -510,17 +622,25 @@ nav {
 }
 
 .form-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(118px, 0.76fr) minmax(0, 1fr);
 }
 
 .time-parts {
   border: 0;
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(70px, 0.8fr) minmax(74px, 0.8fr);
   margin: 0;
   min-width: 0;
   padding: 0;
+}
+
+.minute-input {
+  padding-right: 18px;
+}
+
+.meridiem-select {
+  min-width: 74px;
 }
 
 .mini-segmented {
@@ -547,7 +667,7 @@ nav {
 input,
 select,
 textarea {
-  background: #fbfcf9;
+  background: color-mix(in srgb, var(--color-panel) 88%, #ffffff);
   border: 1px solid #d9e2d8;
   border-radius: 8px;
   color: #17211b;
@@ -646,7 +766,7 @@ textarea {
 }
 
 .timer-panel.active-session {
-  background: #fbfff9;
+  background: color-mix(in srgb, var(--color-panel) 88%, #fbfff9);
 }
 
 .completion-screen {
@@ -654,12 +774,36 @@ textarea {
 }
 
 .timer-display {
-  color: #12311e;
+  color: var(--color-accent);
   font-size: clamp(4rem, 10vw, 7rem);
   font-weight: 800;
   letter-spacing: 0;
   line-height: 1;
   text-align: center;
+}
+
+.pomodoro-summary,
+.settings-section {
+  border: 1px solid #dbe3d9;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.pomodoro-summary span {
+  color: #5d6d62;
+}
+
+.theme-color-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.color-input-row input[type="color"] {
+  min-height: 38px;
+  padding: 4px;
 }
 
 .timer-progress {
@@ -886,30 +1030,52 @@ textarea {
     overflow: visible;
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
-    display: grid;
-    gap: 16px;
-    min-height: auto;
-    padding: 16px;
-    position: static;
-  }
-
-  nav {
-    grid-template-columns: repeat(5, minmax(48px, 1fr));
-  }
-
-  .nav-button {
-    justify-content: center;
-  }
-
-  .nav-button span {
     display: none;
   }
 
   .workspace {
     min-height: 760px;
     overflow: visible;
-    padding: 16px;
+    padding: 16px 16px 86px;
+  }
+
+  .mobile-nav {
+    align-items: center;
+    background: color-mix(in srgb, var(--color-sidebar) 94%, transparent);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    bottom: 0;
+    display: grid;
+    gap: 4px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    left: 0;
+    padding: 8px;
+    position: fixed;
+    right: 0;
+    z-index: 25;
+  }
+
+  .mobile-nav-button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: #dbe4dc;
+    display: grid;
+    font-size: 0.72rem;
+    gap: 3px;
+    justify-items: center;
+    min-height: 52px;
+    padding: 5px 3px;
+  }
+
+  .mobile-nav-button.active {
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
   }
 
   .dashboard-grid,

@@ -115,10 +115,10 @@ export function usePlanner() {
     }));
   }, [commitState]);
 
-  const toggleTask = useCallback((task: Task) => {
+  const toggleTask = useCallback((task: Task, occurrenceAt?: string) => {
     commitState((current) => ({
       ...current,
-      tasks: current.tasks.map((candidate) => (candidate.id === task.id ? toggleTaskCompletion(candidate) : candidate))
+      tasks: current.tasks.map((candidate) => (candidate.id === task.id ? toggleTaskCompletion(candidate, occurrenceAt) : candidate))
     }));
   }, [commitState]);
 

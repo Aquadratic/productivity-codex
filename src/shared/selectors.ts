@@ -20,10 +20,12 @@ export interface PlannerListItem {
   allDay?: boolean;
   priority?: Task['priority'];
   importance?: CalendarEvent['importance'];
+  color?: string;
   status?: Task['status'];
   completed: boolean;
   completedAt?: string;
   source: Task | CalendarEvent;
+  occurrenceKey?: string;
 }
 
 export interface PlannerListGroups {
@@ -134,6 +136,7 @@ function tasksToItems(tasks: Task[]): PlannerListItem[] {
     dueAt: task.dueAt,
     allDay: task.allDay,
     priority: task.priority,
+    color: task.color,
     status: task.status,
     completed: false,
     completedAt: getTaskCompletionTime(task),
@@ -149,9 +152,11 @@ function tasksToItems(tasks: Task[]): PlannerListItem[] {
       dueAt: record.occurrenceKey,
       allDay: task.allDay,
       priority: task.priority,
+      color: task.color,
       status: 'completed' as const,
       completed: true,
       completedAt: record.completedAt,
+      occurrenceKey: record.occurrenceKey,
       source: task
     }));
     return [...active, ...completed];
@@ -168,6 +173,7 @@ function eventsToItems(events: CalendarEvent[]): PlannerListItem[] {
     endsAt: event.endsAt,
     allDay: event.allDay,
     importance: event.importance,
+    color: event.color,
     completed: isEventOccurrenceCompleted(event),
     completedAt: event.completedOccurrences.find((record) => record.occurrenceKey === normalizeOccurrenceKey(event.startsAt))?.completedAt ?? event.completedOccurrences[0]?.completedAt,
     source: event
@@ -230,8 +236,8 @@ function taskToCalendarEvents(task: Task, from: Date, to: Date): CalendarViewEve
     end: occurrence.toISOString(),
     allDay: task.allDay,
     classNames: [`task-calendar-event`, `importance-${task.priority}`],
-    backgroundColor: '#23693c',
-    borderColor: '#23693c',
+    backgroundColor: task.color ?? '#23693c',
+    borderColor: task.color ?? '#23693c',
     extendedProps: {
       importance: task.priority,
       notes: task.notes,

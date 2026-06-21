@@ -12,8 +12,11 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  GripHorizontal,
   LayoutDashboard,
   ListTodo,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
   RotateCcw,
   Settings,
@@ -24,13 +27,25 @@ import {
   Volume2,
   X
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { CalendarEvent, Importance, RepeatFrequency, Task, TimerMode, UpcomingRange } from '../shared/types';
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import {
+  darkThemeColors,
+  lightThemeColors,
+  type AppSettings,
+  type CalendarEvent,
+  type Importance,
+  type RepeatFrequency,
+  type Task,
+  type ThemeColors,
+  type TimerMode,
+  type UpcomingRange
+} from '../shared/types';
 import { createCustomRecurrenceRule, parseRecurrenceRule, type RecurrenceDraft } from '../shared/recurrence';
 import { validateEventTime } from '../shared/events';
 import { getSoundChoice, soundChoices } from '../shared/sounds';
 import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration, secondsToDurationParts } from '../shared/timer';
 import { getCalendarViewEvents, getTaskListGroups, getUpcomingItems, type PlannerFilter, type PlannerListItem } from '../shared/selectors';
+import { buildThemeVariables, calendarClickRange, wrapMinute } from '../shared/uiHelpers';
 import { usePlanner, type View } from './usePlanner';
 
 const navItems: Array<{ view: View; label: string; icon: typeof LayoutDashboard }> = [
@@ -78,6 +93,7 @@ type TaskDraft = {
   endMeridiem: 'AM' | 'PM';
   allDay: boolean;
   priority: Task['priority'];
+  color: string;
   recurrence: RecurrenceDraft;
 };
 
@@ -90,6 +106,14 @@ type UndoState = {
 };
 
 const eventColors = ['#5578a6', '#23693c', '#8f4d32', '#7b4fa3', '#b2671d', '#2f7f7b'];
+const themeColorFields: Array<{ key: keyof ThemeColors; label: string }> = [
+  { key: 'sidebar', label: 'Sidebar' },
+  { key: 'pageBackground', label: 'Page Background' },
+  { key: 'panelBackground', label: 'Panel Background' },
+  { key: 'accent', label: 'Accent' },
+  { key: 'taskDefault', label: 'Task Default' },
+  { key: 'eventDefault', label: 'Event Default' }
+];
 
 const monthOptions = [
   { value: '1', label: 'Jan' },
@@ -108,10 +132,25 @@ const monthOptions = [
 
 export function App() {
   const planner = usePlanner();
+  const settings = planner.state.settings;
+  const [taskDefaultSignal, setTaskDefaultSignal] = useState(0);
+  const navigate = (view: View) => {
+    if (view === 'tasks') setTaskDefaultSignal((value) => value + 1);
+    planner.setView(view);
+  };
 
   return (
-    <main className="app-shell">
+    <main className={settings.sidebarCollapsed ? 'app-shell sidebar-collapsed' : 'app-shell'} style={buildThemeVariables(settings) as CSSProperties}>
       <aside className="sidebar">
+        <button
+          aria-label={settings.sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          className="icon-action sidebar-toggle"
+          onClick={() => planner.updateSettings({ ...settings, sidebarCollapsed: !settings.sidebarCollapsed })}
+          title={settings.sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          type="button"
+        >
+          {settings.sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
         <div className="brand-block">
           <div className="brand-mark"><Sparkles size={20} /></div>
           <div>
@@ -126,7 +165,8 @@ export function App() {
               <button
                 className={planner.view === item.view ? 'nav-button active' : 'nav-button'}
                 key={item.view}
-                onClick={() => planner.setView(item.view)}
+                onClick={() => navigate(item.view)}
+                title={item.label}
                 type="button"
               >
                 <Icon size={18} />
@@ -144,12 +184,29 @@ export function App() {
           <>
             {planner.view === 'dashboard' && <Dashboard planner={planner} />}
             {planner.view === 'calendar' && <CalendarView planner={planner} />}
-            {planner.view === 'tasks' && <TasksView planner={planner} />}
+            {planner.view === 'tasks' && <TasksView planner={planner} defaultSignal={taskDefaultSignal} />}
             {planner.view === 'timer' && <TimerView planner={planner} />}
             {planner.view === 'settings' && <SettingsView planner={planner} />}
           </>
         )}
       </section>
+      <nav className="mobile-nav" aria-label="Mobile Navigation">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              className={planner.view === item.view ? 'mobile-nav-button active' : 'mobile-nav-button'}
+              key={item.view}
+              onClick={() => navigate(item.view)}
+              title={item.label}
+              type="button"
+            >
+              <Icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </main>
   );
 }
@@ -173,16 +230,18 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <p className="eyebrow">{format(new Date(), 'EEEE, MMM d')}</p>
           <h2>Dashboard</h2>
         </div>
-        <button className="primary-action" onClick={() => planner.setView('timer')} type="button">
-          <Play size={18} />
-          Start Focus
-        </button>
+        <div className="dashboard-header-actions">
+          <span className="current-time-chip" aria-label="Current Time">{format(now, 'h:mm:ss a')}</span>
+          <button className="primary-action" onClick={() => planner.setView('timer')} type="button">
+            <Play size={18} />
+            Start Focus
+          </button>
+        </div>
       </header>
       <div className="dashboard-grid">
         <MetricCard label="Events Today" value={todaysEvents.length} />
         <MetricCard label="Tasks Today" value={todaysTasks.length} />
         <MetricCard label="Upcoming" value={upcoming.length} />
-        <MetricCard label="Current Time" value={format(now, 'h:mm:ss a')} />
         <ListPanel title="Today" detail="Schedule And Task List" empty="Nothing due today." roomy>
           {planner.todayItems.map((item) => (
             <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} />
@@ -216,8 +275,8 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 }
 
 function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
-  const [draft, setDraft] = useState<EventDraft>(() => toDraft(new Date()));
-  const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date()));
+  const [draft, setDraft] = useState<EventDraft>(() => toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>();
   const [editingEventId, setEditingEventId] = useState<string>();
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
@@ -229,8 +288,8 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const openChoice = (start: Date, end?: Date, allDay = false) => {
     const selection = { start, end: end ?? addMinutes(start, 60), allDay };
     setPendingSelection(selection);
-    setDraft(toDraft(selection.start, selection.end));
-    setTaskDraft(toTaskDraft(selection.start, selection.end));
+    setDraft(toDraft(selection.start, selection.end, undefined, settings.themeColors.eventDefault));
+    setTaskDraft(toTaskDraft(selection.start, selection.end, settings.themeColors.taskDefault, allDay));
     setEditingEventId(undefined);
     setSelectedTaskId(undefined);
     setDrawerMode('choice');
@@ -239,7 +298,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const openExisting = (id: string) => {
     const event = planner.state.events.find((candidate) => candidate.id === id);
     if (!event) return;
-    setDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event));
+    setDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event, settings.themeColors.eventDefault));
     setEditingEventId(id);
     setSelectedTaskId(undefined);
     setDrawerMode('eventDetails');
@@ -248,7 +307,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const openTaskDetails = (id: string) => {
     const task = planner.state.tasks.find((candidate) => candidate.id === id);
     if (!task) return;
-    setTaskDraft(toTaskDraftFromTask(task));
+    setTaskDraft(toTaskDraftFromTask(task, settings.themeColors.taskDefault));
     setSelectedTaskId(id);
     setEditingEventId(undefined);
     setDrawerMode('taskDetails');
@@ -263,8 +322,12 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       return;
     }
 
-    const minute = arg.date.getMinutes();
-    openChoice(minute === 0 ? addMinutes(arg.date, -30) : arg.date, minute === 0 ? addMinutes(arg.date, 30) : addMinutes(arg.date, 60));
+    const target = arg.jsEvent?.target instanceof HTMLElement ? arg.jsEvent.target : undefined;
+    const rect = target?.getBoundingClientRect();
+    const relativeY = rect ? arg.jsEvent.clientY - rect.top : 20;
+    const isLineClick = relativeY <= 3 || (rect ? rect.height - relativeY <= 3 : false);
+    const range = calendarClickRange(arg.date, isLineClick);
+    openChoice(range.start, range.end);
   };
 
   const handleEventClick = (arg: EventClickArg) => {
@@ -413,7 +476,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
                 start.setHours(now.getHours(), now.getMinutes(), 0, 0);
                 const end = new Date(endDate);
                 end.setHours(now.getHours(), now.getMinutes(), 0, 0);
-                openChoice(start, end);
+                openChoice(start, end, true);
               } else {
                 openChoice(selection.start, selection.end);
               }
@@ -439,65 +502,67 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
             if (event.target === event.currentTarget) setDrawerMode(undefined);
           }}>
-            {drawerMode === 'choice' && (
-              <ChoiceDrawer
-                onClose={() => setDrawerMode(undefined)}
-                onEvent={() => {
-                  setDraft(toDraft(pendingSelection.start, pendingSelection.end));
-                  setDrawerMode('eventForm');
-                }}
-                onTask={() => {
-                  setTaskDraft(toTaskDraft(pendingSelection.start, pendingSelection.end));
-                  setDrawerMode('taskForm');
-                }}
-              />
-            )}
-            {drawerMode === 'eventDetails' && editingEventId && (
-              <DetailsDrawer
-                item={planner.state.events.find((event) => event.id === editingEventId)}
-                kind="event"
-                onClose={() => setDrawerMode(undefined)}
-                onEdit={() => setDrawerMode('eventForm')}
-                onToggle={() => planner.toggleEvent(planner.state.events.find((event) => event.id === editingEventId)!)}
-              />
-            )}
-            {drawerMode === 'taskDetails' && selectedTaskId && (
-              <DetailsDrawer
-                item={planner.state.tasks.find((task) => task.id === selectedTaskId)}
-                kind="task"
-                onClose={() => setDrawerMode(undefined)}
-                onEdit={() => setDrawerMode('taskForm')}
-                onToggle={() => planner.toggleTask(planner.state.tasks.find((task) => task.id === selectedTaskId)!)}
-              />
-            )}
-            {drawerMode === 'eventForm' && (
-              <EventForm
-                draft={draft}
-                editingEventId={editingEventId}
-                planner={planner}
-                onChange={setDraft}
-                onClose={() => setDrawerMode(undefined)}
-                onSaved={() => {
-                  setDrawerMode(undefined);
-                  setEditingEventId(undefined);
-                  setDraft(toDraft(new Date()));
-                }}
-              />
-            )}
-            {drawerMode === 'taskForm' && (
-              <TaskForm
-                draft={taskDraft}
-                editingTaskId={selectedTaskId}
-                planner={planner}
-                onChange={setTaskDraft}
-                onClose={() => setDrawerMode(undefined)}
-                onSaved={() => {
-                  setDrawerMode(undefined);
-                  setSelectedTaskId(undefined);
-                  setTaskDraft(toTaskDraft(new Date()));
-                }}
-              />
-            )}
+            <DraggablePanel>
+              {drawerMode === 'choice' && (
+                <ChoiceDrawer
+                  onClose={() => setDrawerMode(undefined)}
+                  onEvent={() => {
+                    setDraft(toDraft(pendingSelection.start, pendingSelection.end, undefined, settings.themeColors.eventDefault));
+                    setDrawerMode('eventForm');
+                  }}
+                  onTask={() => {
+                  setTaskDraft(toTaskDraft(pendingSelection.start, pendingSelection.end, settings.themeColors.taskDefault, Boolean(pendingSelection.allDay), Boolean(pendingSelection.allDay)));
+                    setDrawerMode('taskForm');
+                  }}
+                />
+              )}
+              {drawerMode === 'eventDetails' && editingEventId && (
+                <DetailsDrawer
+                  item={planner.state.events.find((event) => event.id === editingEventId)}
+                  kind="event"
+                  onClose={() => setDrawerMode(undefined)}
+                  onEdit={() => setDrawerMode('eventForm')}
+                  onToggle={() => planner.toggleEvent(planner.state.events.find((event) => event.id === editingEventId)!)}
+                />
+              )}
+              {drawerMode === 'taskDetails' && selectedTaskId && (
+                <DetailsDrawer
+                  item={planner.state.tasks.find((task) => task.id === selectedTaskId)}
+                  kind="task"
+                  onClose={() => setDrawerMode(undefined)}
+                  onEdit={() => setDrawerMode('taskForm')}
+                  onToggle={() => planner.toggleTask(planner.state.tasks.find((task) => task.id === selectedTaskId)!)}
+                />
+              )}
+              {drawerMode === 'eventForm' && (
+                <EventForm
+                  draft={draft}
+                  editingEventId={editingEventId}
+                  planner={planner}
+                  onChange={setDraft}
+                  onClose={() => setDrawerMode(undefined)}
+                  onSaved={() => {
+                    setDrawerMode(undefined);
+                    setEditingEventId(undefined);
+                    setDraft(toDraft(new Date(), undefined, undefined, settings.themeColors.eventDefault));
+                  }}
+                />
+              )}
+              {drawerMode === 'taskForm' && (
+                <TaskForm
+                  draft={taskDraft}
+                  editingTaskId={selectedTaskId}
+                  planner={planner}
+                  onChange={setTaskDraft}
+                  onClose={() => setDrawerMode(undefined)}
+                  onSaved={() => {
+                    setDrawerMode(undefined);
+                    setSelectedTaskId(undefined);
+                    setTaskDraft(toTaskDraft(new Date(), undefined, settings.themeColors.taskDefault));
+                  }}
+                />
+              )}
+            </DraggablePanel>
           </div>
         )}
         {undo && (
@@ -511,13 +576,17 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   );
 }
 
-function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
-  const [filter, setFilter] = useState<PlannerFilter>('all');
+function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof usePlanner>; defaultSignal: number }) {
+  const [filter, setFilter] = useState<PlannerFilter>('today');
   const [drawerMode, setDrawerMode] = useState<DrawerMode>();
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date()));
   const groups = useMemo(() => getTaskListGroups(planner.state, filter), [filter, planner.state]);
   const selectedTask = planner.state.tasks.find((task) => task.id === selectedTaskId);
+
+  useEffect(() => {
+    setFilter('today');
+  }, [defaultSignal]);
 
   return (
     <div className="view-stack full-height-view">
@@ -528,7 +597,7 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         </div>
         <div className="header-actions">
           <SegmentedControl options={['all', 'today', 'upcoming', 'overdue']} value={filter} onChange={(value) => setFilter(value as PlannerFilter)} />
-          <button className="primary-action" onClick={() => { setSelectedTaskId(undefined); setTaskDraft(toTaskDraft(new Date())); setDrawerMode('taskForm'); }} type="button">
+          <button className="primary-action" onClick={() => { setSelectedTaskId(undefined); setTaskDraft(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault)); setDrawerMode('taskForm'); }} type="button">
             <ListTodo size={18} />
             Add Task
           </button>
@@ -544,7 +613,7 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onOpen={() => {
               if (item.kind === 'task') {
                 setSelectedTaskId((item.source as Task).id);
-                setTaskDraft(toTaskDraftFromTask(item.source as Task));
+                setTaskDraft(toTaskDraftFromTask(item.source as Task, planner.state.settings.themeColors.taskDefault));
                 setDrawerMode('taskDetails');
               }
             }} />
@@ -555,7 +624,7 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             <PlannerItemRow item={item} key={`completed-${item.kind}-${item.id}`} planner={planner} onOpen={() => {
               if (item.kind === 'task') {
                 setSelectedTaskId((item.source as Task).id);
-                setTaskDraft(toTaskDraftFromTask(item.source as Task));
+                setTaskDraft(toTaskDraftFromTask(item.source as Task, planner.state.settings.themeColors.taskDefault));
                 setDrawerMode('taskDetails');
               }
             }} />
@@ -565,29 +634,31 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
             if (event.target === event.currentTarget) setDrawerMode(undefined);
           }}>
-            {drawerMode === 'taskDetails' && selectedTask && (
-              <DetailsDrawer
-                item={selectedTask}
-                kind="task"
-                onClose={() => setDrawerMode(undefined)}
-                onEdit={() => setDrawerMode('taskForm')}
-                onToggle={() => planner.toggleTask(selectedTask)}
-              />
-            )}
-            {drawerMode === 'taskForm' && (
-              <TaskForm
-                draft={taskDraft}
-                editingTaskId={selectedTaskId}
-                planner={planner}
-                onChange={setTaskDraft}
-                onClose={() => setDrawerMode(undefined)}
-                onSaved={() => {
-                  setDrawerMode(undefined);
-                  setSelectedTaskId(undefined);
-                  setTaskDraft(toTaskDraft(new Date()));
-                }}
-              />
-            )}
+            <DraggablePanel>
+              {drawerMode === 'taskDetails' && selectedTask && (
+                <DetailsDrawer
+                  item={selectedTask}
+                  kind="task"
+                  onClose={() => setDrawerMode(undefined)}
+                  onEdit={() => setDrawerMode('taskForm')}
+                  onToggle={() => planner.toggleTask(selectedTask)}
+                />
+              )}
+              {drawerMode === 'taskForm' && (
+                <TaskForm
+                  draft={taskDraft}
+                  editingTaskId={selectedTaskId}
+                  planner={planner}
+                  onChange={setTaskDraft}
+                  onClose={() => setDrawerMode(undefined)}
+                  onSaved={() => {
+                    setDrawerMode(undefined);
+                    setSelectedTaskId(undefined);
+                    setTaskDraft(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
+                  }}
+                />
+              )}
+            </DraggablePanel>
           </div>
         )}
       </div>
@@ -596,13 +667,15 @@ function TasksView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 }
 
 function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
-  const [mode, setMode] = useState<TimerMode>('focus');
+  const [mode, setMode] = useState<TimerMode | 'pomodoro'>('focus');
   const [duration, setDuration] = useState(() => secondsToDurationParts(planner.state.settings.lastTimerDurationSeconds));
+  const [pomodoroActive, setPomodoroActive] = useState(false);
+  const [pomodoroFocusCount, setPomodoroFocusCount] = useState(0);
   const [now, setNow] = useState(Date.now());
   const loopingAudio = useRef<HTMLAudioElement>();
   const snapshot = planner.activeTimer ? getTimerSnapshot(planner.activeTimer, now) : undefined;
   const settings = planner.state.settings;
-  const canStart = isValidTimerDuration(duration);
+  const canStart = mode === 'pomodoro' || isValidTimerDuration(duration);
 
   useEffect(() => {
     if (!planner.activeTimer) return undefined;
@@ -638,9 +711,38 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   };
 
   const startTimer = () => {
+    if (mode === 'pomodoro') {
+      setPomodoroActive(true);
+      setPomodoroFocusCount(0);
+      planner.startTimer('focus', Math.max(1, settings.pomodoroFocusMinutes) * 60);
+      return;
+    }
     const durationSeconds = durationPartsToSeconds(duration);
     planner.updateSettings({ ...settings, lastTimerDurationSeconds: durationSeconds });
     planner.startTimer(mode, durationSeconds);
+  };
+
+  const startNextPomodoroSegment = () => {
+    if (!planner.completedTimer) return;
+    const sessionsBeforeLongBreak = Math.max(1, settings.pomodoroSessionsBeforeLongBreak);
+    const nextFocusCount = planner.completedTimer.mode === 'focus' ? pomodoroFocusCount + 1 : pomodoroFocusCount;
+    const nextMode: TimerMode = planner.completedTimer.mode === 'focus' ? 'break' : 'focus';
+    const breakIsLong = planner.completedTimer.mode === 'focus' && nextFocusCount % sessionsBeforeLongBreak === 0;
+    const nextDuration = nextMode === 'focus'
+      ? settings.pomodoroFocusMinutes * 60
+      : (breakIsLong ? settings.pomodoroLongBreakMinutes : settings.pomodoroShortBreakMinutes) * 60;
+
+    stopCompleteSound();
+    planner.dismissCompletedTimer();
+    setPomodoroFocusCount(nextFocusCount);
+    setPomodoroActive(true);
+    planner.startTimer(nextMode, Math.max(1, nextDuration));
+  };
+
+  const resetToSetup = () => {
+    setPomodoroActive(false);
+    setPomodoroFocusCount(0);
+    dismissCompletion();
   };
 
   if (planner.completedTimer) {
@@ -652,19 +754,29 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <div className="timer-display">{formatTimer(planner.completedTimer.durationSeconds)}</div>
           <p className="timer-meta">
             {planner.completedTimer.mode === 'focus'
-              ? 'Nice work. Choose another sound, preview it, or start another session.'
+              ? 'Nice work. The next session is ready when you are.'
               : 'Break finished. Ready when you are.'}
           </p>
-          <SoundControls planner={planner} />
+          {pomodoroActive && (
+            <p className="timer-meta">
+              Pomodoro Progress: {pomodoroFocusCount + (planner.completedTimer.mode === 'focus' ? 1 : 0)} Focus Session(s)
+            </p>
+          )}
           <div className="timer-actions">
             <button className="secondary-action" onClick={stopCompleteSound} type="button">
               <Volume2 size={18} />
               Stop Sound
             </button>
-            <button className="primary-action" onClick={dismissCompletion} type="button">
+            <button className="secondary-action" onClick={resetToSetup} type="button">
               <Play size={18} />
               Start Another
             </button>
+            {pomodoroActive && (
+              <button className="primary-action" onClick={startNextPomodoroSegment} type="button">
+                <Play size={18} />
+                Start Next
+              </button>
+            )}
           </div>
         </section>
       </div>
@@ -696,25 +808,37 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           </>
         ) : (
           <>
-            <SegmentedControl options={['focus', 'break']} value={mode} onChange={(value) => setMode(value as TimerMode)} />
-            <div className="duration-grid">
-              <label className="field">
-                <span>Hours</span>
-                <input min="0" max="12" type="number" value={duration.hours} onChange={(event) => setDuration({ ...duration, hours: Number(event.target.value) })} />
-              </label>
-              <label className="field">
-                <span>Minutes</span>
-                <input min="0" max="59" type="number" value={duration.minutes} onChange={(event) => setDuration({ ...duration, minutes: Number(event.target.value) })} />
-              </label>
-              <label className="field">
-                <span>Seconds</span>
-                <input min="0" max="59" type="number" value={duration.seconds} onChange={(event) => setDuration({ ...duration, seconds: Number(event.target.value) })} />
-              </label>
-            </div>
+            <SegmentedControl options={['focus', 'break', 'pomodoro']} value={mode} onChange={(value) => setMode(value as TimerMode | 'pomodoro')} />
+            {mode === 'pomodoro' ? (
+              <div className="pomodoro-summary editable-pomodoro">
+                <strong>Pomodoro Cycle</strong>
+                <div className="duration-grid">
+                  <NumberSetting label="Focus Minutes" value={settings.pomodoroFocusMinutes} onChange={(value) => planner.updateSettings({ ...settings, pomodoroFocusMinutes: value })} />
+                  <NumberSetting label="Short Break" value={settings.pomodoroShortBreakMinutes} onChange={(value) => planner.updateSettings({ ...settings, pomodoroShortBreakMinutes: value })} />
+                  <NumberSetting label="Long Break" value={settings.pomodoroLongBreakMinutes} onChange={(value) => planner.updateSettings({ ...settings, pomodoroLongBreakMinutes: value })} />
+                </div>
+                <NumberSetting label="Sessions Before Long Break" value={settings.pomodoroSessionsBeforeLongBreak} onChange={(value) => planner.updateSettings({ ...settings, pomodoroSessionsBeforeLongBreak: value })} />
+              </div>
+            ) : (
+              <div className="duration-grid">
+                <label className="field">
+                  <span>Hours</span>
+                  <input min="0" max="12" type="number" value={duration.hours} onChange={(event) => setDuration({ ...duration, hours: Number(event.target.value) })} />
+                </label>
+                <label className="field">
+                  <span>Minutes</span>
+                  <input min="0" max="59" type="number" value={duration.minutes} onChange={(event) => setDuration({ ...duration, minutes: Number(event.target.value) })} />
+                </label>
+                <label className="field">
+                  <span>Seconds</span>
+                  <input min="0" max="59" type="number" value={duration.seconds} onChange={(event) => setDuration({ ...duration, seconds: Number(event.target.value) })} />
+                </label>
+              </div>
+            )}
             <SoundControls planner={planner} />
             <button className="primary-action" disabled={!canStart} onClick={startTimer} type="button">
               <Play size={18} />
-              Start Timer
+              {mode === 'pomodoro' ? 'Start Pomodoro' : 'Start Timer'}
             </button>
           </>
         )}
@@ -760,6 +884,52 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             type="checkbox"
           />
         </label>
+        <section className="settings-section" aria-label="Theme Settings">
+          <PanelTitle title="Theme" detail="Preset Or Custom App Colors" />
+          <label className="field">
+            <span>Theme Preset</span>
+            <select
+              value={settings.themePreset}
+              onChange={(event) => {
+                const preset = event.target.value as AppSettings['themePreset'];
+                planner.updateSettings({
+                  ...settings,
+                  themePreset: preset,
+                  themeColors: preset === 'light' ? lightThemeColors : preset === 'dark' ? darkThemeColors : settings.themeColors
+                });
+              }}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <div className="theme-color-grid">
+            {themeColorFields.map((field) => (
+              <label className="field color-input-row" key={field.key}>
+                <span>{field.label}</span>
+                <input
+                  type="color"
+                  value={settings.themeColors[field.key]}
+                  onChange={(event) => planner.updateSettings({
+                    ...settings,
+                    themePreset: 'custom',
+                    themeColors: { ...settings.themeColors, [field.key]: event.target.value }
+                  })}
+                />
+              </label>
+            ))}
+          </div>
+        </section>
+        <section className="settings-section" aria-label="Pomodoro Settings">
+          <PanelTitle title="Pomodoro" detail="Cycle Lengths And Long Break Timing" />
+          <div className="duration-grid">
+            <NumberSetting label="Focus Minutes" value={settings.pomodoroFocusMinutes} onChange={(value) => planner.updateSettings({ ...settings, pomodoroFocusMinutes: value })} />
+            <NumberSetting label="Short Break" value={settings.pomodoroShortBreakMinutes} onChange={(value) => planner.updateSettings({ ...settings, pomodoroShortBreakMinutes: value })} />
+            <NumberSetting label="Long Break" value={settings.pomodoroLongBreakMinutes} onChange={(value) => planner.updateSettings({ ...settings, pomodoroLongBreakMinutes: value })} />
+          </div>
+          <NumberSetting label="Sessions Before Long Break" value={settings.pomodoroSessionsBeforeLongBreak} onChange={(value) => planner.updateSettings({ ...settings, pomodoroSessionsBeforeLongBreak: value })} />
+        </section>
         <SoundControls planner={planner} />
         <button className="danger-action" onClick={() => setConfirmReset(true)} type="button">
           <RotateCcw size={18} />
@@ -780,6 +950,15 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         )}
       </section>
     </div>
+  );
+}
+
+function NumberSetting({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input min="1" type="number" value={value} onChange={(event) => onChange(Math.max(1, Number(event.target.value) || 1))} />
+    </label>
   );
 }
 
@@ -865,7 +1044,7 @@ function EventForm({
           <option value="high">High</option>
         </select>
       </label>
-      <ColorPicker value={draft.color} onChange={(color) => setField('color', color)} />
+      <ColorPicker label="Event Color" value={draft.color} onChange={(color) => setField('color', color)} />
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="form-actions">
         {editingEventId && (
@@ -892,7 +1071,7 @@ function EventForm({
               planner.deleteEvent(editingEventId);
               onSaved();
             } else {
-              onChange(toDraft(new Date()));
+              onChange(toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
               setConfirmAction(undefined);
             }
           }}
@@ -952,6 +1131,7 @@ function TaskForm({
       title: draft.title,
       notes: draft.notes,
       priority: draft.priority,
+      color: draft.color,
       startsAt,
       endsAt,
       dueAt: endsAt,
@@ -1028,6 +1208,7 @@ function TaskForm({
           <option value="high">High</option>
         </select>
       </label>
+      <ColorPicker label="Task Color" value={draft.color} onChange={(color) => setField('color', color)} />
       <RecurrenceFields value={draft.recurrence} onChange={(recurrence) => setField('recurrence', recurrence)} />
       <textarea name="notes" placeholder="Notes" value={draft.notes} onChange={(event) => setField('notes', event.target.value)} />
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -1045,7 +1226,7 @@ function TaskForm({
           confirmLabel="Reset"
           onCancel={() => setConfirmAction(undefined)}
           onConfirm={() => {
-            onChange(toTaskDraft(new Date()));
+            onChange(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
             setConfirmAction(undefined);
           }}
         />
@@ -1058,7 +1239,7 @@ function PlannerItemRow({ item, planner, onOpen }: { item: PlannerListItem; plan
   const when = formatItemTime(item);
   const source = item.source;
   const toggle = () => item.kind === 'task'
-    ? planner.toggleTask(source as Task)
+    ? planner.toggleTask(source as Task, item.occurrenceKey ?? item.endsAt ?? item.dueAt)
     : planner.toggleEvent(source as CalendarEvent, item.startsAt);
 
   return (
@@ -1066,7 +1247,7 @@ function PlannerItemRow({ item, planner, onOpen }: { item: PlannerListItem; plan
       className={`list-row ${item.kind} ${item.completed ? 'completed' : ''}`}
       onClick={onOpen}
       role={onOpen ? 'button' : undefined}
-      style={item.kind === 'event' ? { borderLeftColor: (source as CalendarEvent).color } : undefined}
+      style={{ borderLeftColor: item.kind === 'event' ? (source as CalendarEvent).color : item.color ?? planner.state.settings.themeColors.taskDefault }}
       tabIndex={onOpen ? 0 : undefined}
     >
       <button
@@ -1146,10 +1327,10 @@ function SoundControls({ planner }: { planner: ReturnType<typeof usePlanner> }) 
   );
 }
 
-function ColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
   return (
     <fieldset className="color-picker">
-      <legend>Event Color</legend>
+      <legend>{label}</legend>
       <div className="color-grid">
         {eventColors.map((color) => (
           <label key={color} style={{ '--swatch-color': color } as CSSProperties}>
@@ -1157,6 +1338,10 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (color: str
             <span aria-hidden="true" />
           </label>
         ))}
+        <label className="custom-color-field">
+          <input aria-label={`Custom ${label}`} type="color" value={value} onChange={(event) => onChange(event.target.value)} />
+          <span aria-hidden="true" />
+        </label>
       </div>
     </fieldset>
   );
@@ -1244,6 +1429,47 @@ function ConfirmDialog({
   );
 }
 
+function DraggablePanel({ children }: { children: ReactNode }) {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const dragOffset = useRef({ x: 0, y: 0 });
+
+  const startDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const panel = event.currentTarget.closest('.draggable-panel') as HTMLElement | null;
+    const rect = panel?.getBoundingClientRect();
+    dragOffset.current = {
+      x: event.clientX - (rect?.left ?? position.x),
+      y: event.clientY - (rect?.top ?? position.y)
+    };
+
+    const move = (moveEvent: MouseEvent) => {
+      const width = panel?.offsetWidth ?? 420;
+      const height = panel?.offsetHeight ?? 560;
+      setPosition({
+        x: Math.min(Math.max(0, moveEvent.clientX - dragOffset.current.x), Math.max(0, window.innerWidth - width)),
+        y: Math.min(Math.max(0, moveEvent.clientY - dragOffset.current.y), Math.max(0, window.innerHeight - height))
+      });
+    };
+
+    const stop = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', stop);
+    };
+
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', stop);
+  };
+
+  return (
+    <div className="draggable-panel" style={{ transform: `translate(${position.x}px, ${position.y}px)` }} onMouseDown={(event) => event.stopPropagation()}>
+      <div className="drag-handle" onMouseDown={startDrag} role="button" tabIndex={0} title="Move Popup" aria-label="Move Popup">
+        <GripHorizontal size={18} />
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function RecurrenceFields({ value, onChange }: { value: RecurrenceDraft; onChange: (value: RecurrenceDraft) => void }) {
   const setValue = (patch: Partial<RecurrenceDraft>) => onChange({ ...value, ...patch });
   const toggleWeekday = (day: NonNullable<RecurrenceDraft['weekdays']>[number]) => {
@@ -1281,7 +1507,7 @@ function RecurrenceFields({ value, onChange }: { value: RecurrenceDraft; onChang
             <span>End By (Optional)</span>
             <input name="until" type="date" value={value.until ? format(value.until, 'yyyy-MM-dd') : ''} onChange={(event) => setValue({ until: event.target.value ? new Date(`${event.target.value}T23:59:59`) : undefined })} />
           </label>
-          {(value.frequency === 'daily' || value.frequency === 'weekly') && (
+          {value.frequency === 'weekly' && (
             <>
             <p className="field-hint">Days (Optional)</p>
             <div className="weekday-grid" aria-label="Repeat weekdays">
@@ -1349,12 +1575,19 @@ function TimePartsControl({
           <option key={value} value={value}>{value}</option>
         ))}
       </select>
-      <input aria-label={`${name} minute`} max="59" min="0" type="number" value={minute} onChange={(event) => onMinuteChange(clampMinute(event.target.value))} />
-      <div className="segmented mini-segmented" aria-label={`${name} meridiem`}>
-        {(['AM', 'PM'] as const).map((value) => (
-          <button className={meridiem === value ? 'selected' : ''} key={value} onClick={() => onMeridiemChange(value)} type="button">{value}</button>
-        ))}
-      </div>
+      <input
+        aria-label={`${name} minute`}
+        className="minute-input"
+        max="59"
+        min="0"
+        type="number"
+        value={minute}
+        onChange={(event) => onMinuteChange(wrapMinute(Number(event.target.value)))}
+      />
+      <select aria-label={`${name} AM PM`} className="meridiem-select" value={meridiem} onChange={(event) => onMeridiemChange(event.target.value as 'AM' | 'PM')}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
     </fieldset>
   );
 }
@@ -1407,6 +1640,7 @@ function ListPanel({
         </div>
       </div>
       {expanded && <div className="item-list">{childArray.length === 0 ? <p className="empty-state">{empty}</p> : children}</div>}
+      {!expanded && childArray.length > 0 && <p className="hidden-count">{childArray.length} Hidden</p>}
     </section>
   );
 }
@@ -1441,7 +1675,7 @@ function SegmentedControl({ options, value, onChange }: { options: string[]; val
   );
 }
 
-function toDraft(start: Date, end = addMinutes(start, 30), event?: CalendarEvent): EventDraft {
+function toDraft(start: Date, end = addMinutes(start, 30), event?: CalendarEvent, defaultColor = eventColors[0]): EventDraft {
   return {
     title: event?.title ?? '',
     notes: event?.notes ?? '',
@@ -1451,16 +1685,16 @@ function toDraft(start: Date, end = addMinutes(start, 30), event?: CalendarEvent
     end: format(end, 'HH:mm'),
     allDay: event?.allDay ?? false,
     importance: event?.importance ?? 'normal',
-    color: event?.color ?? eventColors[0],
+    color: event?.color ?? defaultColor,
     recurrence: parseRecurrenceRule(event?.recurrenceRule)
   };
 }
 
-function toTaskDraft(start: Date, end = addMinutes(start, 30)): TaskDraft {
+function toTaskDraft(start: Date, end = addMinutes(start, 30), defaultColor = '#23693c', hasStartTime = false, allDay = false): TaskDraft {
   return {
     title: '',
     notes: '',
-    hasStartTime: false,
+    hasStartTime,
     startDate: format(start, 'yyyy-MM-dd'),
     startHour: format(start, 'h'),
     startMinute: format(start, 'mm'),
@@ -1469,15 +1703,16 @@ function toTaskDraft(start: Date, end = addMinutes(start, 30)): TaskDraft {
     endHour: format(end, 'h'),
     endMinute: format(end, 'mm'),
     endMeridiem: format(end, 'a') as 'AM' | 'PM',
-    allDay: false,
+    allDay,
     priority: 'normal',
+    color: defaultColor,
     recurrence: { frequency: 'none', interval: 1 }
   };
 }
 
-function toTaskDraftFromTask(task: Task): TaskDraft {
+function toTaskDraftFromTask(task: Task, defaultColor = '#23693c'): TaskDraft {
   const end = task.endsAt ?? task.dueAt ?? new Date().toISOString();
-  const draft = toTaskDraft(task.startsAt ? parseISO(task.startsAt) : parseISO(end), parseISO(end));
+  const draft = toTaskDraft(task.startsAt ? parseISO(task.startsAt) : parseISO(end), parseISO(end), task.color ?? defaultColor);
   return {
     ...draft,
     title: task.title,
@@ -1485,6 +1720,7 @@ function toTaskDraftFromTask(task: Task): TaskDraft {
     hasStartTime: Boolean(task.startsAt),
     allDay: task.allDay,
     priority: task.priority,
+    color: task.color ?? defaultColor,
     recurrence: parseRecurrenceRule(task.recurrenceRule)
   };
 }
@@ -1516,7 +1752,7 @@ function buildRecurrenceFromDraft(recurrence: RecurrenceDraft): string | undefin
     interval: Math.max(1, recurrence.interval || 1),
     count: recurrence.count,
     until: recurrence.until,
-    weekdays: (recurrence.frequency === 'daily' || recurrence.frequency === 'weekly') && recurrence.weekdays?.length ? recurrence.weekdays : undefined,
+    weekdays: recurrence.frequency === 'weekly' && recurrence.weekdays?.length ? recurrence.weekdays : undefined,
     months: recurrence.frequency === 'monthly' && recurrence.months?.length ? recurrence.months : undefined
   });
 }
@@ -1526,7 +1762,7 @@ function timeStringToParts(value: string): { hour: string; minute: string; merid
   const hour24 = Number(hourText);
   return {
     hour: String(hour24 % 12 || 12),
-    minute: clampMinute(minuteText),
+    minute: wrapMinute(Number(minuteText)),
     meridiem: hour24 >= 12 ? 'PM' : 'AM'
   };
 }
@@ -1534,7 +1770,7 @@ function timeStringToParts(value: string): { hour: string; minute: string; merid
 function partsToTimeString(hour: string, minute: string, meridiem: 'AM' | 'PM'): string {
   const hourNumber = Number(hour);
   const normalizedHour = meridiem === 'AM' ? hourNumber % 12 : (hourNumber % 12) + 12;
-  return `${String(normalizedHour).padStart(2, '0')}:${clampMinute(minute)}`;
+  return `${String(normalizedHour).padStart(2, '0')}:${wrapMinute(Number(minute))}`;
 }
 
 function clampMinute(value: string): string {
@@ -1548,7 +1784,7 @@ function formatRange(startsAt?: string, endsAt?: string, allDay = false): string
   const start = parseISO(startsAt);
   const end = parseISO(endsAt!);
   if (allDay) return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`;
-  return `${format(start, 'MMM d, h:mm a')} - ${format(end, isSameDay(start, end) ? 'h:mm a' : 'MMM d, h:mm a')}`;
+  return `${format(start, 'MMM d, yyyy h:mm a')} - ${format(end, isSameDay(start, end) ? 'h:mm a' : 'MMM d, yyyy h:mm a')}`;
 }
 
 function formatItemTime(item: PlannerListItem): string {
