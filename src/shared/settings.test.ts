@@ -26,9 +26,9 @@ describe('settings', () => {
   it('normalizes dark theme text colors', () => {
     const settings = normalizeSettings({ themePreset: 'dark', themeColors: {} as never });
 
-    expect(settings.themeColors.textPrimary).toBe('#f8fafc');
-    expect(settings.themeColors.textMuted).toBe('#cbd5e1');
-    expect(settings.themeColors.textOnAccent).toBe('#061020');
+    expect(settings.themeColors.textPrimary).toBe('#ffffff');
+    expect(settings.themeColors.textMuted).toBe('#d7e2f2');
+    expect(settings.themeColors.textOnAccent).toBe('#031024');
   });
 
   it('normalizes older planner state', () => {

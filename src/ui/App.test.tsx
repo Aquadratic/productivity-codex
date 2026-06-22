@@ -70,9 +70,9 @@ describe('App', () => {
     const startDateInput = document.querySelector('input[name="startDate"]') as HTMLInputElement;
     const endDateInput = document.querySelector('input[name="endDate"]') as HTMLInputElement;
     await userEvent.clear(startDateInput);
-    await userEvent.type(startDateInput, '2026-06-22');
+    await userEvent.type(startDateInput, '2036-06-22');
     await userEvent.clear(endDateInput);
-    await userEvent.type(endDateInput, '2026-06-22');
+    await userEvent.type(endDateInput, '2036-06-22');
     await userEvent.click(screen.getByRole('button', { name: /Add event/i }));
 
     await userEvent.click(navButton(/Dashboard/i));

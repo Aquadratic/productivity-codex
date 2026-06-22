@@ -28,6 +28,6 @@ describe('ui helpers', () => {
       themeColors: { ...defaultSettings.themeColors, accent: '#123456' }
     })['--color-accent']).toBe('#123456');
     expect(buildThemeVariables(defaultSettings)['--color-text']).toBe('#111827');
-    expect(buildThemeVariables({ ...defaultSettings, themePreset: 'dark' })['--color-text']).toBe('#f8fafc');
+    expect(buildThemeVariables({ ...defaultSettings, themePreset: 'dark' })['--color-text']).toBe('#ffffff');
   });
 });
