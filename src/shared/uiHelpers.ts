@@ -35,15 +35,39 @@ export function calendarClickRange(date: Date, isLineClick: boolean): { start: D
 }
 
 export function deriveCustomThemeColors(input: ThemeColors): ThemeColors {
+  const accent = input.accent || lightThemeColors.accent;
   return {
-    sidebar: input.sidebar || lightThemeColors.sidebar,
-    pageBackground: input.pageBackground || lightThemeColors.pageBackground,
-    panelBackground: input.panelBackground || lightThemeColors.panelBackground,
-    accent: input.accent,
-    taskDefault: input.taskDefault,
-    eventDefault: input.eventDefault,
+    sidebar: darkenHex(accent, 0.34),
+    pageBackground: mixHex('#ffffff', accent, 0.08),
+    panelBackground: mixHex('#ffffff', accent, 0.02),
+    accent,
+    taskDefault: input.taskDefault || accent,
+    eventDefault: input.eventDefault || accent,
     textPrimary: input.textPrimary || lightThemeColors.textPrimary,
     textMuted: input.textMuted || lightThemeColors.textMuted,
     textOnAccent: input.textOnAccent || lightThemeColors.textOnAccent
   };
+}
+
+function darkenHex(hex: string, amount: number): string {
+  return mixHex('#000000', hex, Math.max(0, Math.min(1, amount)));
+}
+
+function mixHex(base: string, color: string, amount: number): string {
+  const baseRgb = parseHex(base);
+  const colorRgb = parseHex(color);
+  const ratio = Math.max(0, Math.min(1, amount));
+  return `#${baseRgb.map((channel, index) => {
+    const mixed = Math.round(channel * (1 - ratio) + colorRgb[index] * ratio);
+    return mixed.toString(16).padStart(2, '0');
+  }).join('')}`;
+}
+
+function parseHex(hex: string): [number, number, number] {
+  const normalized = /^#[0-9a-f]{6}$/i.test(hex) ? hex.slice(1) : lightThemeColors.accent.slice(1);
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16)
+  ];
 }

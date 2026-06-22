@@ -222,6 +222,11 @@ nav {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.calendar-view {
+  max-height: calc(100vh - 44px);
+  overflow: hidden;
+}
+
 .view-header {
   align-items: center;
   display: flex;
@@ -369,8 +374,8 @@ nav {
 
 .item-list {
   display: grid;
-  gap: 9px;
-  max-height: min(42vh, 420px);
+  gap: 12px;
+  max-height: min(56vh, 620px);
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
@@ -396,14 +401,23 @@ nav {
   border-left: 4px solid #7b9f84;
   border-radius: 8px;
   display: grid;
-  gap: 10px;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  min-height: 52px;
-  padding: 8px 10px;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 68px;
+  padding: 12px;
 }
 
-.list-row > .icon-action:last-child {
-  grid-column: 4;
+.list-row > .icon-action:first-child {
+  grid-column: 1;
+}
+
+.list-row > .item-main {
+  grid-column: 2;
+}
+
+.list-row > .row-actions {
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .list-row.event {
@@ -411,7 +425,10 @@ nav {
 }
 
 .list-row.completed {
-  opacity: 0.72;
+  background: color-mix(in srgb, var(--color-accent) 11%, var(--color-panel));
+  border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-panel));
+  opacity: 0.86;
+  min-height: 96px;
 }
 
 .list-row.completed .item-main strong {
@@ -421,7 +438,9 @@ nav {
 .item-main {
   display: grid;
   gap: 2px;
+  grid-auto-rows: min-content;
   min-width: 0;
+  overflow: hidden;
 }
 
 .item-main strong {
@@ -433,6 +452,30 @@ nav {
 .list-row small {
   color: var(--color-muted);
   font-size: 0.86rem;
+  min-width: 0;
+}
+
+.item-meta {
+  font-weight: 800;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-transform: capitalize;
+}
+
+.row-actions {
+  align-items: start;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  justify-content: flex-end;
+  justify-self: stretch;
+  min-width: max-content;
+}
+
+.row-actions > svg {
+  align-self: center;
+  color: var(--color-muted);
+  flex: 0 0 auto;
 }
 
 .item-notes {
@@ -442,14 +485,19 @@ nav {
 
 .item-main .completed-time {
   color: var(--color-muted);
+  display: block;
   font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .calendar-panel {
-  height: calc(100vh - 128px);
+  height: calc(100vh - 112px);
   min-height: 520px;
+  overscroll-behavior: contain;
   overflow: hidden;
-  padding: 10px;
+  padding: 8px;
   position: relative;
 }
 
@@ -469,8 +517,8 @@ nav {
 }
 
 .calendar-panel .fc-toolbar {
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .calendar-panel .fc-toolbar-title {
@@ -484,12 +532,13 @@ nav {
 .calendar-panel .fc-button {
   border-radius: 8px;
   font-weight: 700;
-  min-height: 34px;
-  padding: 5px 10px;
+  min-height: 30px;
+  padding: 4px 9px;
   text-transform: capitalize;
 }
 
 .calendar-panel .fc-scroller {
+  overscroll-behavior: contain;
   overflow: auto !important;
 }
 
@@ -521,7 +570,7 @@ nav {
 }
 
 .calendar-panel .fc-timegrid-slot {
-  height: 46px;
+  height: 38px;
 }
 
 .calendar-panel .fc-timegrid-slot-label-frame {
@@ -554,16 +603,28 @@ nav {
 }
 
 .calendar-hit-layer {
-  inset: 52px 10px 10px 60px;
+  background: transparent;
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+}
+
+.calendar-hit-target {
+  background: transparent;
   pointer-events: auto;
   position: absolute;
-  z-index: 2;
+  touch-action: none;
 }
 
 .calendar-panel .fc-timegrid-event-harness,
-.calendar-panel .fc-event {
-  position: relative;
+.calendar-panel .fc-timegrid-event,
+.calendar-panel .fc-daygrid-event {
+  pointer-events: auto;
   z-index: 4;
+}
+
+.calendar-panel .fc-list-event {
+  pointer-events: auto;
 }
 
 .calendar-panel .fc-daygrid-event-harness,
@@ -581,12 +642,122 @@ nav {
   opacity: 0.78;
 }
 
-.calendar-panel .task-calendar-event {
+.calendar-panel .fc-timegrid-event.task-calendar-event,
+.calendar-panel .fc-daygrid-event.task-calendar-event {
   border-style: dashed;
 }
 
+.calendar-panel .fc-list-event.task-calendar-event {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.calendar-panel .fc-list,
+.calendar-panel .fc-list-table {
+  background: var(--color-panel);
+  border-color: color-mix(in srgb, var(--color-muted) 16%, var(--color-panel)) !important;
+  border-style: solid !important;
+  color: var(--color-text);
+}
+
+.calendar-panel .fc-list-table {
+  border-collapse: collapse;
+}
+
+.calendar-panel .fc-list-event td {
+  background: var(--color-panel);
+  border-color: color-mix(in srgb, var(--color-muted) 12%, var(--color-panel)) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-style: solid !important;
+  color: var(--color-text);
+}
+
+.calendar-panel .fc-list-event.task-calendar-event td {
+  background: color-mix(in srgb, var(--color-task) 8%, var(--color-panel));
+  border-color: color-mix(in srgb, var(--color-task) 10%, var(--color-panel)) !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+}
+
+.calendar-panel .fc-list-event.task-calendar-event .fc-list-event-dot {
+  border-color: var(--color-task) !important;
+}
+
+.calendar-panel .fc-list-day-cushion {
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-panel)) !important;
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.calendar-panel .fc-more-link,
+.calendar-panel .fc-more-popover {
+  background: var(--color-panel);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-panel));
+  color: var(--color-text);
+}
+
+.calendar-panel .fc-more-link {
+  border-radius: 6px;
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+  margin: 1px 3px;
+  max-width: 30px;
+  overflow: hidden;
+  padding: 2px 5px;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.calendar-panel .fc-more-link:hover {
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-panel));
+  color: var(--color-text);
+}
+
+.calendar-panel .fc-more-popover {
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(8, 18, 37, 0.24);
+  overflow: hidden;
+  z-index: 50 !important;
+}
+
+.calendar-panel .fc-popover-header {
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-panel));
+  color: var(--color-text);
+}
+
+.calendar-panel .fc-list-event:hover td {
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-panel));
+}
+
+.calendar-panel .fc-list-event.task-calendar-event:hover td {
+  background: color-mix(in srgb, var(--color-task) 13%, var(--color-panel));
+}
+
 .calendar-panel .calendar-item-completed {
-  opacity: 0.62;
+  opacity: 0.82;
+}
+
+.calendar-panel .fc-list-event.calendar-item-completed td {
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-panel));
+  color: var(--color-muted);
+}
+
+.calendar-panel .fc-list-event.calendar-item-completed .fc-list-event-title::after {
+  background: color-mix(in srgb, var(--color-accent) 24%, var(--color-panel));
+  border-radius: 999px;
+  color: var(--color-text);
+  content: "Completed";
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-left: 8px;
+  padding: 3px 6px;
+  vertical-align: middle;
 }
 
 .calendar-panel .calendar-item-completed .fc-event-title {
@@ -597,6 +768,7 @@ nav {
   opacity: 0.58;
   outline: 2px dashed color-mix(in srgb, var(--color-accent) 70%, transparent);
   outline-offset: -2px;
+  pointer-events: none;
 }
 
 .form-panel {
@@ -640,7 +812,7 @@ nav {
   position: fixed;
   right: 0;
   top: 0;
-  z-index: 20;
+  z-index: 100;
 }
 
 .drawer-panel {
@@ -650,23 +822,28 @@ nav {
 }
 
 .draggable-panel {
+  background: var(--color-panel);
+  border-radius: 8px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   max-width: min(94vw, 430px);
+  overflow: hidden;
   position: fixed;
   width: min(94vw, 430px);
+  z-index: 101;
 }
 
 .drag-handle {
   align-items: center;
   background: var(--color-sidebar);
-  border-radius: 8px 8px 0 0;
+  border-radius: 0;
   color: #ffffff;
   cursor: move;
   display: flex;
   justify-content: center;
   min-height: 28px;
   touch-action: none;
+  width: 100%;
 }
 
 .draggable-panel .drawer-panel {
@@ -784,7 +961,8 @@ textarea {
 }
 
 .segmented {
-  background: color-mix(in srgb, var(--color-panel) 70%, var(--color-page));
+  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-panel));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-panel));
   border-radius: 8px;
   display: flex;
   gap: 4px;
@@ -800,8 +978,9 @@ textarea {
 }
 
 .segmented button.selected {
-  background: var(--color-panel);
-  box-shadow: 0 1px 5px rgba(30, 40, 35, 0.12);
+  background: var(--color-accent);
+  box-shadow: 0 1px 5px rgba(30, 40, 35, 0.16);
+  color: var(--color-on-accent);
 }
 
 .timer-screen {
@@ -1125,6 +1304,22 @@ textarea {
     padding: 16px 16px 86px;
   }
 
+  .calendar-view {
+    max-height: none;
+    min-height: 0;
+  }
+
+  .calendar-view .view-header {
+    gap: 10px;
+    min-height: auto;
+  }
+
+  .calendar-view .header-actions {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
   .mobile-nav {
     align-items: center;
     background: color-mix(in srgb, var(--color-sidebar) 94%, transparent);
@@ -1170,7 +1365,8 @@ textarea {
   }
 
   .calendar-panel {
-    height: 620px;
+    height: min(78vh, 760px);
+    min-height: 620px;
   }
 
   .drawer-backdrop {
@@ -1193,7 +1389,7 @@ textarea {
   }
 
   .list-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .list-row small {
@@ -1201,13 +1397,43 @@ textarea {
   }
 
   .calendar-panel .fc-toolbar {
-    align-items: stretch;
+    align-items: center;
+    gap: 6px;
     flex-direction: column;
   }
 
+  .calendar-panel .fc-toolbar-chunk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .calendar-panel .fc-button {
+    font-size: 0.82rem;
+    min-height: 28px;
+    padding: 3px 7px;
+  }
+
+  .calendar-panel .fc-toolbar-title {
+    font-size: 0.95rem;
+    max-width: 100%;
+  }
+
   .header-actions {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .calendar-view .mini-toggle span {
+    font-size: 0.82rem;
+  }
+
+  .calendar-panel {
+    height: 72vh;
+    min-height: 600px;
+    padding: 6px;
   }
 
   .weekday-grid {

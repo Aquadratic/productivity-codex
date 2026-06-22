@@ -67,18 +67,36 @@ export function advanceOverdueRecurringTasks(tasks: Task[], now = new Date()): T
 
 export function toggleTaskCompletion(task: Task, occurrenceAt = task.endsAt ?? task.dueAt ?? new Date().toISOString()): Task {
   const occurrenceKey = normalizeOccurrenceKey(occurrenceAt);
-  const isCompleted = task.completedOccurrences.some((record) => record.occurrenceKey === occurrenceKey) || task.status === 'completed';
+  const completedRecord = task.completedOccurrences.find((record) => record.occurrenceKey === occurrenceKey);
+  const isCompleted = Boolean(completedRecord) || task.status === 'completed';
 
   if (isCompleted) {
-    return {
+    const reopened: Task = {
       ...task,
       status: 'open',
       completedOccurrences: task.completedOccurrences.filter((candidate) => candidate.occurrenceKey !== occurrenceKey),
       updatedAt: new Date().toISOString()
     };
+    return task.recurrenceRule && completedRecord ? restoreTaskOccurrence(reopened, occurrenceKey) : reopened;
   }
 
   return completeTaskOccurrence(task, occurrenceAt);
+}
+
+function restoreTaskOccurrence(task: Task, occurrenceKey: string): Task {
+  const currentEnd = parseISO(task.endsAt ?? task.dueAt ?? occurrenceKey);
+  const duration = task.startsAt
+    ? differenceInMilliseconds(currentEnd, parseISO(task.startsAt))
+    : 0;
+  const restoredEnd = parseISO(occurrenceKey);
+
+  return {
+    ...task,
+    startsAt: task.startsAt ? addMilliseconds(restoredEnd, -duration).toISOString() : undefined,
+    endsAt: restoredEnd.toISOString(),
+    dueAt: restoredEnd.toISOString(),
+    updatedAt: new Date().toISOString()
+  };
 }
 
 export function getNextTaskOccurrence(task: Task, after = new Date()): Date | undefined {

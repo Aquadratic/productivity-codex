@@ -13,7 +13,14 @@ describe('settings', () => {
     expect(normalizeSettings({ notificationsEnabled: false }).themeColors.textPrimary).toBe('#111827');
     expect(normalizeSettings({ notificationsEnabled: false }).showTaskItemsInTasks).toBe(true);
     expect(normalizeSettings({ notificationsEnabled: false }).popupPosition).toEqual({ x: 0, y: 0 });
+    expect(normalizeSettings({ notificationsEnabled: false }).recentCustomColors).toEqual([]);
     expect(normalizeSettings({ notificationsEnabled: false }).pomodoroFocusMinutes).toBe(25);
+  });
+
+  it('normalizes recent custom colors to a small valid list', () => {
+    expect(normalizeSettings({
+      recentCustomColors: ['#123456', 'not-a-color', '#abcdef', '#123456', '#fedcba', '#111111']
+    }).recentCustomColors).toEqual(['#123456', '#abcdef', '#fedcba', '#111111']);
   });
 
   it('normalizes dark theme text colors', () => {

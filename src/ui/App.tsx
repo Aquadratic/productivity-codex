@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Clock3,
   Download,
+  Pencil,
   GripHorizontal,
   LayoutDashboard,
   ListTodo,
@@ -44,11 +45,12 @@ import {
   type UpcomingRange
 } from '../shared/types';
 import { createCustomRecurrenceRule, parseRecurrenceRule, type RecurrenceDraft } from '../shared/recurrence';
-import { validateEventTime } from '../shared/events';
+import { isEventOccurrenceCompleted, validateEventTime } from '../shared/events';
 import { getSoundChoice, soundChoices } from '../shared/sounds';
 import { buildPlannerExport, buildPlannerExportFilename, parsePlannerExport } from '../shared/export';
 import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration, secondsToDurationParts } from '../shared/timer';
 import { getCalendarViewEvents, getTaskListGroups, getUpcomingItems, type PlannerFilter, type PlannerListItem } from '../shared/selectors';
+import { isTaskOccurrenceCompleted } from '../shared/tasks';
 import { buildThemeVariables, calendarClickRange, wrapMinute } from '../shared/uiHelpers';
 import { usePlanner, type View } from './usePlanner';
 
@@ -110,10 +112,19 @@ type UndoState = {
 };
 
 type CalendarPointerSelection = PendingSelection & { mode: 'hover' | 'press' | 'drag' };
+type CalendarHitBounds = { left: number; top: number; width: number; height: number };
+type CalendarHitTarget = {
+  date: string;
+  kind: 'box' | 'line';
+  left: number;
+  time: string;
+  top: number;
+  width: number;
+  height: number;
+};
 
 const eventColors = ['#2f5597', '#4d63a6', '#5578a6', '#8f4d32', '#7b4fa3'];
 const themeColorFields: Array<{ key: keyof ThemeColors; label: string }> = [
-  { key: 'accent', label: 'Accent' },
   { key: 'taskDefault', label: 'Task Default' },
   { key: 'eventDefault', label: 'Event Default' }
 ];
@@ -219,7 +230,42 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const todaysTasks = planner.todayItems.filter((item) => item.kind === 'task');
   const [range, setRange] = useState<UpcomingRange>(planner.state.settings.upcomingRange);
   const [now, setNow] = useState(new Date());
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>();
+  const [selectedTaskId, setSelectedTaskId] = useState<string>();
+  const [selectedTaskOccurrenceKey, setSelectedTaskOccurrenceKey] = useState<string>();
+  const [selectedEventId, setSelectedEventId] = useState<string>();
+  const [selectedEventOccurrenceKey, setSelectedEventOccurrenceKey] = useState<string>();
+  const [eventDraft, setEventDraft] = useState<EventDraft>(() => toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
   const upcoming = useMemo(() => getUpcomingItems(planner.state, new Date(), range), [planner.state, range]);
+  const selectedTask = planner.state.tasks.find((task) => task.id === selectedTaskId);
+  const selectedEvent = planner.state.events.find((event) => event.id === selectedEventId);
+
+  const openItemDetails = (item: PlannerListItem) => {
+    if (item.kind === 'task') {
+      const task = item.source as Task;
+      setSelectedTaskId(task.id);
+      setSelectedTaskOccurrenceKey(item.occurrenceKey);
+      setSelectedEventId(undefined);
+      setSelectedEventOccurrenceKey(undefined);
+      setTaskDraft(toTaskDraftFromTask(task, planner.state.settings.themeColors.taskDefault));
+      setDrawerMode('taskDetails');
+      return;
+    }
+
+    const event = item.source as CalendarEvent;
+    setSelectedEventId(event.id);
+    setSelectedEventOccurrenceKey(item.occurrenceKey ?? item.startsAt);
+    setSelectedTaskId(undefined);
+    setSelectedTaskOccurrenceKey(undefined);
+    setEventDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event, planner.state.settings.themeColors.eventDefault));
+    setDrawerMode('eventDetails');
+  };
+
+  const openItemEdit = (item: PlannerListItem) => {
+    openItemDetails(item);
+    setDrawerMode(item.kind === 'task' ? 'taskForm' : 'eventForm');
+  };
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 1000);
@@ -247,7 +293,7 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         <MetricCard label="Upcoming" value={upcoming.length} />
         <ListPanel title="Today" detail="Schedule And Task List" empty="Nothing due today." roomy>
           {planner.todayItems.map((item) => (
-            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} />
+            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} />
           ))}
         </ListPanel>
         <ListPanel
@@ -269,10 +315,76 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           }
         >
           {upcoming.map((item) => (
-            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} />
+            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} />
           ))}
         </ListPanel>
       </div>
+      {drawerMode && (
+        <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDrawerMode(undefined);
+        }}>
+          <DraggablePanel planner={planner}>
+            {drawerMode === 'eventDetails' && selectedEvent && (
+              <DetailsDrawer
+                item={selectedEvent}
+                kind="event"
+                completed={isEventOccurrenceCompleted(selectedEvent, selectedEventOccurrenceKey)}
+                onClose={() => setDrawerMode(undefined)}
+                onEdit={() => setDrawerMode('eventForm')}
+                onDelete={() => { planner.deleteEvent(selectedEvent.id); setDrawerMode(undefined); }}
+                onToggle={() => planner.toggleEvent(selectedEvent, selectedEventOccurrenceKey)}
+              />
+            )}
+            {drawerMode === 'taskDetails' && selectedTask && (
+              <DetailsDrawer
+                item={selectedTask}
+                kind="task"
+                completed={selectedTaskOccurrenceKey ? isTaskOccurrenceCompleted(selectedTask, selectedTaskOccurrenceKey) : selectedTask.status === 'completed'}
+                onClose={() => setDrawerMode(undefined)}
+                onEdit={() => setDrawerMode('taskForm')}
+                onDelete={() => {
+                  if (selectedTaskOccurrenceKey && selectedTask.recurrenceRule && selectedTask.completedOccurrences.some((record) => record.occurrenceKey === selectedTaskOccurrenceKey)) {
+                    planner.updateTask(selectedTask.id, {
+                      completedOccurrences: selectedTask.completedOccurrences.filter((record) => record.occurrenceKey !== selectedTaskOccurrenceKey)
+                    });
+                  } else {
+                    planner.deleteTask(selectedTask.id);
+                  }
+                  setDrawerMode(undefined);
+                }}
+                onToggle={() => planner.toggleTask(selectedTask, selectedTaskOccurrenceKey)}
+              />
+            )}
+            {drawerMode === 'taskForm' && (
+              <TaskForm
+                draft={taskDraft}
+                editingTaskId={selectedTaskId}
+                planner={planner}
+                onChange={setTaskDraft}
+                onClose={() => setDrawerMode(undefined)}
+                onSaved={() => {
+                  setDrawerMode(undefined);
+                  setSelectedTaskId(undefined);
+                  setSelectedTaskOccurrenceKey(undefined);
+                }}
+              />
+            )}
+            {drawerMode === 'eventForm' && (
+              <EventForm
+                draft={eventDraft}
+                editingEventId={selectedEventId}
+                planner={planner}
+                onChange={setEventDraft}
+                onClose={() => setDrawerMode(undefined)}
+                onSaved={() => {
+                  setDrawerMode(undefined);
+                  setSelectedEventId(undefined);
+                }}
+              />
+            )}
+          </DraggablePanel>
+        </div>
+      )}
     </div>
   );
 }
@@ -283,11 +395,14 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>();
   const [editingEventId, setEditingEventId] = useState<string>();
+  const [editingEventOccurrenceKey, setEditingEventOccurrenceKey] = useState<string>();
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
+  const [selectedTaskOccurrenceKey, setSelectedTaskOccurrenceKey] = useState<string>();
   const [pendingSelection, setPendingSelection] = useState<PendingSelection>(() => ({ start: new Date(), end: addMinutes(new Date(), 60) }));
   const [calendarRange, setCalendarRange] = useState(() => ({ start: subDays(new Date(), 30), end: addDays(new Date(), 60) }));
   const [calendarViewType, setCalendarViewType] = useState('timeGridWeek');
   const [pointerSelection, setPointerSelection] = useState<CalendarPointerSelection>();
+  const [hitBounds, setHitBounds] = useState<CalendarHitBounds>();
   const [undo, setUndo] = useState<UndoState>();
   const settings = planner.state.settings;
 
@@ -297,29 +412,42 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     setDraft(toDraft(selection.start, selection.end, undefined, settings.themeColors.eventDefault));
     setTaskDraft(toTaskDraft(selection.start, selection.end, settings.themeColors.taskDefault, allDay));
     setEditingEventId(undefined);
+    setEditingEventOccurrenceKey(undefined);
     setSelectedTaskId(undefined);
+    setSelectedTaskOccurrenceKey(undefined);
     setDrawerMode('choice');
   };
 
-  const openExisting = (id: string) => {
+  const openExisting = (id: string, occurrenceKey?: string) => {
     const event = planner.state.events.find((candidate) => candidate.id === id);
     if (!event) return;
     setDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event, settings.themeColors.eventDefault));
     setEditingEventId(id);
+    setEditingEventOccurrenceKey(occurrenceKey ?? event.startsAt);
     setSelectedTaskId(undefined);
+    setSelectedTaskOccurrenceKey(undefined);
     setDrawerMode('eventDetails');
   };
 
-  const openTaskDetails = (id: string) => {
+  const openTaskDetails = (id: string, occurrenceKey?: string) => {
     const task = planner.state.tasks.find((candidate) => candidate.id === id);
     if (!task) return;
     setTaskDraft(toTaskDraftFromTask(task, settings.themeColors.taskDefault));
     setSelectedTaskId(id);
+    setSelectedTaskOccurrenceKey(occurrenceKey);
     setEditingEventId(undefined);
     setDrawerMode('taskDetails');
   };
 
   const handleDateClick = (arg: DateClickArg) => {
+    const clickTarget = arg.jsEvent.target;
+    if (
+      clickTarget instanceof Element &&
+      clickTarget.closest('.fc-event, .fc-more-link, .fc-popover, .fc-toolbar, .fc-button')
+    ) {
+      return;
+    }
+
     if (arg.view.type === 'dayGridMonth') {
       const now = new Date();
       const start = new Date(arg.date);
@@ -327,14 +455,42 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       openChoice(start, addMinutes(start, 60));
       return;
     }
+
+    if (arg.view.type === 'timeGridWeek' || arg.view.type === 'timeGridDay') {
+      if (arg.allDay) {
+        openChoice(arg.date, addMinutes(arg.date, 60), true);
+        return;
+      }
+
+      const panel = calendarPanelRef.current;
+      const slots = Array.from(panel?.querySelectorAll<HTMLElement>('.fc-timegrid-slot-lane[data-time]') ?? []);
+      const slotFromTarget = clickTarget instanceof Element
+        ? clickTarget.closest<HTMLElement>('.fc-timegrid-slot-lane[data-time]')
+        : undefined;
+      const slotFromPoint = document.elementsFromPoint(arg.jsEvent.clientX, arg.jsEvent.clientY)
+        .find((element): element is HTMLElement => element instanceof HTMLElement && element.matches('.fc-timegrid-slot-lane[data-time]'));
+      const slot = slotFromTarget ?? slotFromPoint;
+      if (!slot?.dataset.time) return;
+
+      const nearestLineSlot = slots.reduce<{ slot: HTMLElement; distance: number } | undefined>((nearest, candidate) => {
+        const distance = Math.abs(arg.jsEvent.clientY - candidate.getBoundingClientRect().top);
+        return !nearest || distance < nearest.distance ? { slot: candidate, distance } : nearest;
+      }, undefined);
+      const lineThreshold = 8;
+      const lineSlot = nearestLineSlot && nearestLineSlot.distance <= lineThreshold ? nearestLineSlot.slot : undefined;
+      const time = lineSlot?.dataset.time ?? slot.dataset.time;
+      const startsAt = new Date(`${format(arg.date, 'yyyy-MM-dd')}T${time}`);
+      const range = calendarClickRange(startsAt, Boolean(lineSlot));
+      openChoice(range.start, range.end);
+    }
   };
 
   const handleEventClick = (arg: EventClickArg) => {
-    const props = arg.event.extendedProps as { kind?: 'event' | 'task'; sourceId?: string };
+    const props = arg.event.extendedProps as { kind?: 'event' | 'task'; sourceId?: string; occurrenceAt?: string };
     if (props.kind === 'task' && props.sourceId) {
-      openTaskDetails(props.sourceId);
+      openTaskDetails(props.sourceId, props.occurrenceAt);
     } else if (props.sourceId) {
-      openExisting(props.sourceId);
+      openExisting(props.sourceId, props.occurrenceAt);
     }
   };
 
@@ -350,11 +506,12 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         ...calendarItems,
         {
           id: 'selection-preview',
-          title: 'Selected Time',
+          title: 'New Event',
           start: selectionPreview.start.toISOString(),
           end: selectionPreview.end.toISOString(),
           allDay: Boolean(selectionPreview.allDay),
           classNames: ['draft-preview-event', `preview-${selectionPreview.mode}`],
+          display: 'background',
           backgroundColor: settings.themeColors.eventDefault,
           borderColor: settings.themeColors.eventDefault,
           extendedProps: { importance: 'normal' as const, notes: '', kind: 'event' as const, sourceId: 'selection-preview' }
@@ -388,6 +545,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         end: previewEnd.toISOString(),
         allDay: draft.allDay,
         classNames: ['draft-preview-event'],
+        display: 'background',
         backgroundColor: draft.color,
         borderColor: draft.color,
         extendedProps: { importance: draft.importance, notes: draft.notes, kind: 'event' as const, sourceId: 'draft-preview' }
@@ -428,6 +586,49 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     return () => window.clearTimeout(timeout);
   }, [undo]);
 
+  useEffect(() => {
+    if (!calendarViewType.startsWith('timeGrid')) {
+      setHitBounds(undefined);
+      return undefined;
+    }
+
+    const panel = calendarPanelRef.current;
+    if (!panel) return undefined;
+
+    const measure = () => {
+      const panelRect = panel.getBoundingClientRect();
+      const body = panel.querySelector<HTMLElement>('.fc-timegrid-body');
+      const scroller = body?.closest<HTMLElement>('.fc-scroller');
+      if (!body || !scroller) {
+        setHitBounds(undefined);
+        return;
+      }
+
+      const bodyRect = body.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      const left = Math.max(bodyRect.left, scrollerRect.left);
+      const top = Math.max(bodyRect.top, scrollerRect.top);
+      const right = Math.min(bodyRect.right, scrollerRect.right);
+      const bottom = Math.min(bodyRect.bottom, scrollerRect.bottom);
+      const width = Math.max(0, right - left);
+      const height = Math.max(0, bottom - top);
+      setHitBounds(width > 0 && height > 0 ? {
+        left: left - panelRect.left,
+        top: top - panelRect.top,
+        width,
+        height
+      } : undefined);
+    };
+
+    window.setTimeout(measure, 0);
+    window.addEventListener('resize', measure);
+    panel.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      panel.removeEventListener('scroll', measure, true);
+    };
+  }, [calendarViewType, calendarRange.start, calendarRange.end]);
+
   const restoreUndo = () => {
     if (!undo) return;
     if (undo.kind === 'event') {
@@ -439,7 +640,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   };
 
   return (
-    <div className="view-stack full-height-view">
+    <div className="view-stack full-height-view calendar-view">
       <header className="view-header">
         <div>
           <p className="eyebrow">Calendar</p>
@@ -469,9 +670,12 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             dayMaxEvents={3}
             editable
             eventDurationEditable
+            eventOrder="start,duration,title,id"
+            eventOrderStrict
             eventStartEditable
             eventDisplay="block"
             eventClick={handleEventClick}
+            eventMouseEnter={() => setPointerSelection(undefined)}
             events={previewEvents}
             expandRows
             headerToolbar={{
@@ -485,6 +689,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             nowIndicator
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             selectable
+            selectMinDistance={8}
             select={(selection) => {
               if (selection.allDay) {
                 const endDate = subDays(selection.end, 1);
@@ -517,13 +722,6 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             }}
             eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
           />
-          {calendarViewType.startsWith('timeGrid') && (
-            <CalendarTimeInteractionLayer
-              panelRef={calendarPanelRef}
-              onOpenChoice={openChoice}
-              onPreview={setPointerSelection}
-            />
-          )}
         </section>
         {drawerMode && (
           <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
@@ -547,9 +745,11 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
                 <DetailsDrawer
                   item={planner.state.events.find((event) => event.id === editingEventId)}
                   kind="event"
+                  completed={isEventOccurrenceCompleted(planner.state.events.find((event) => event.id === editingEventId)!, editingEventOccurrenceKey)}
                   onClose={() => setDrawerMode(undefined)}
+                  onDelete={() => { planner.deleteEvent(editingEventId); setDrawerMode(undefined); }}
                   onEdit={() => setDrawerMode('eventForm')}
-                  onToggle={() => planner.toggleEvent(planner.state.events.find((event) => event.id === editingEventId)!)}
+                  onToggle={() => planner.toggleEvent(planner.state.events.find((event) => event.id === editingEventId)!, editingEventOccurrenceKey)}
                 />
               )}
               {drawerMode === 'taskDetails' && selectedTaskId && (
@@ -557,8 +757,19 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
                   item={planner.state.tasks.find((task) => task.id === selectedTaskId)}
                   kind="task"
                   onClose={() => setDrawerMode(undefined)}
+                  onDelete={() => {
+                    const selectedTask = planner.state.tasks.find((task) => task.id === selectedTaskId);
+                    if (selectedTask && selectedTaskOccurrenceKey && selectedTask.recurrenceRule && selectedTask.completedOccurrences.some((record) => record.occurrenceKey === selectedTaskOccurrenceKey)) {
+                      planner.updateTask(selectedTask.id, {
+                        completedOccurrences: selectedTask.completedOccurrences.filter((record) => record.occurrenceKey !== selectedTaskOccurrenceKey)
+                      });
+                    } else {
+                      planner.deleteTask(selectedTaskId);
+                    }
+                    setDrawerMode(undefined);
+                  }}
                   onEdit={() => setDrawerMode('taskForm')}
-                  onToggle={() => planner.toggleTask(planner.state.tasks.find((task) => task.id === selectedTaskId)!)}
+                  onToggle={() => planner.toggleTask(planner.state.tasks.find((task) => task.id === selectedTaskId)!, selectedTaskOccurrenceKey)}
                 />
               )}
               {drawerMode === 'eventForm' && (
@@ -604,41 +815,114 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 }
 
 function CalendarTimeInteractionLayer({
+  bounds,
   panelRef,
   onOpenChoice,
   onPreview
 }: {
+  bounds?: CalendarHitBounds;
   panelRef: RefObject<HTMLElement>;
   onOpenChoice: (start: Date, end?: Date, allDay?: boolean) => void;
   onPreview: (selection: CalendarPointerSelection | undefined) => void;
 }) {
   const pointerStart = useRef<{ x: number; y: number; range: PendingSelection }>();
+  const [targets, setTargets] = useState<CalendarHitTarget[]>([]);
 
-  const readRangeFromPoint = (clientX: number, clientY: number, mode: CalendarPointerSelection['mode']): CalendarPointerSelection | undefined => {
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || !bounds) {
+      setTargets([]);
+      return undefined;
+    }
+
+    const measureTargets = () => {
+      const panelRect = panel.getBoundingClientRect();
+      const cols = Array.from(panel.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]'));
+      const slots = Array.from(panel.querySelectorAll<HTMLElement>('.fc-timegrid-slot-lane[data-time]'));
+      const nextTargets: CalendarHitTarget[] = [];
+
+      for (const col of cols) {
+        const date = col.dataset.date;
+        if (!date) continue;
+        const colRect = col.getBoundingClientRect();
+        const left = Math.max(colRect.left - panelRect.left, bounds.left);
+        const right = Math.min(colRect.right - panelRect.left, bounds.left + bounds.width);
+        const width = right - left;
+        if (width <= 0) continue;
+
+        for (const slot of slots) {
+          const time = slot.dataset.time;
+          if (!time) continue;
+          const slotRect = slot.getBoundingClientRect();
+          const top = slotRect.top - panelRect.top;
+          const bottom = slotRect.bottom - panelRect.top;
+          if (bottom < bounds.top || top > bounds.top + bounds.height) continue;
+          const visibleTop = Math.max(top, bounds.top);
+          const visibleBottom = Math.min(bottom, bounds.top + bounds.height);
+          const lineTop = Math.max(bounds.top, visibleTop - 7);
+          const lineBottom = Math.min(bounds.top + bounds.height, visibleTop + 7);
+          const boxTop = Math.min(visibleBottom, visibleTop + 8);
+          const boxBottom = Math.max(boxTop, visibleBottom - 8);
+
+          if (lineBottom > lineTop) {
+            nextTargets.push({
+              date,
+              height: lineBottom - lineTop,
+              kind: 'line',
+              left,
+              time,
+              top: lineTop,
+              width
+            });
+          }
+
+          if (boxBottom > boxTop) {
+            nextTargets.push({
+              date,
+              height: boxBottom - boxTop,
+              kind: 'box',
+              left,
+              time,
+              top: boxTop,
+              width
+            });
+          }
+        }
+      }
+
+      setTargets(nextTargets);
+    };
+
+    window.setTimeout(measureTargets, 0);
+    window.addEventListener('resize', measureTargets);
+    panel.addEventListener('scroll', measureTargets, true);
+    return () => {
+      window.removeEventListener('resize', measureTargets);
+      panel.removeEventListener('scroll', measureTargets, true);
+    };
+  }, [bounds, panelRef]);
+
+  if (!bounds) return null;
+
+  const readRangeFromTarget = (target: CalendarHitTarget, mode: CalendarPointerSelection['mode']): CalendarPointerSelection | undefined => {
+    const startsAt = new Date(`${target.date}T${target.time}`);
+    const range = calendarClickRange(startsAt, target.kind === 'line');
+    return { ...range, mode };
+  };
+
+  const findTargetAtPoint = (clientX: number, clientY: number): CalendarHitTarget | undefined => {
     const panel = panelRef.current;
     if (!panel) return undefined;
-
-    const cols = Array.from(panel.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]'))
-      .filter((col) => {
-        const rect = col.getBoundingClientRect();
-        return clientX >= rect.left && clientX <= rect.right;
-      });
-    const col = cols[0];
-    const date = col?.dataset.date;
-    if (!date) return undefined;
-
-    const slots = Array.from(panel.querySelectorAll<HTMLElement>('.fc-timegrid-slot-lane[data-time]'));
-    const slot = slots.find((candidate) => {
-      const rect = candidate.getBoundingClientRect();
-      return clientY >= rect.top && clientY <= rect.bottom;
-    });
-    if (!slot?.dataset.time) return undefined;
-
-    const slotRect = slot.getBoundingClientRect();
-    const nearLine = Math.abs(clientY - slotRect.top) <= 10;
-    const startsAt = new Date(`${date}T${slot.dataset.time}`);
-    const range = calendarClickRange(startsAt, nearLine);
-    return { ...range, mode };
+    if (document.elementFromPoint(clientX, clientY)?.closest('.fc-event')) return undefined;
+    const panelRect = panel.getBoundingClientRect();
+    const x = clientX - panelRect.left;
+    const y = clientY - panelRect.top;
+    return [...targets].reverse().find((target) => (
+      x >= target.left &&
+      x <= target.left + target.width &&
+      y >= target.top &&
+      y <= target.top + target.height
+    ));
   };
 
   const rangeForDrag = (start: PendingSelection, current: PendingSelection): CalendarPointerSelection => {
@@ -652,7 +936,8 @@ function CalendarTimeInteractionLayer({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const current = readRangeFromPoint(event.clientX, event.clientY, pointerStart.current ? 'drag' : 'hover');
+    const hitTarget = findTargetAtPoint(event.clientX, event.clientY);
+    const current = hitTarget ? readRangeFromTarget(hitTarget, pointerStart.current ? 'drag' : 'hover') : undefined;
     if (!current) {
       if (!pointerStart.current) onPreview(undefined);
       return;
@@ -670,12 +955,7 @@ function CalendarTimeInteractionLayer({
     <div
       aria-label="Calendar Time Selection Layer"
       className="calendar-hit-layer"
-      onPointerDown={(event) => {
-        const range = readRangeFromPoint(event.clientX, event.clientY, 'press');
-        if (!range) return;
-        pointerStart.current = { x: event.clientX, y: event.clientY, range };
-        onPreview(range);
-      }}
+      style={{ left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }}
       onPointerLeave={() => {
         pointerStart.current = undefined;
         onPreview(undefined);
@@ -684,7 +964,8 @@ function CalendarTimeInteractionLayer({
       onPointerUp={(event) => {
         const start = pointerStart.current;
         pointerStart.current = undefined;
-        const current = readRangeFromPoint(event.clientX, event.clientY, 'press');
+        const hitTarget = findTargetAtPoint(event.clientX, event.clientY);
+        const current = hitTarget ? readRangeFromTarget(hitTarget, 'press') : undefined;
         if (!start || !current) {
           onPreview(undefined);
           return;
@@ -694,8 +975,37 @@ function CalendarTimeInteractionLayer({
         onPreview(undefined);
         onOpenChoice(range.start, range.end);
       }}
+      onWheel={(event) => {
+        const panel = panelRef.current;
+        const scroller = Array.from(panel?.querySelectorAll<HTMLElement>('.fc-scroller') ?? [])
+          .find((candidate) => candidate.scrollHeight > candidate.clientHeight || candidate.scrollWidth > candidate.clientWidth);
+        if (!scroller) return;
+        event.preventDefault();
+        event.stopPropagation();
+        scroller.scrollTop += event.deltaY;
+        scroller.scrollLeft += event.deltaX;
+      }}
       role="presentation"
-    />
+    >
+      {targets.map((target) => (
+        <div
+          aria-hidden="true"
+          className={`calendar-hit-target calendar-hit-target-${target.kind}`}
+          data-date={target.date}
+          data-kind={target.kind}
+          data-time={target.time}
+          key={`${target.kind}-${target.date}-${target.time}`}
+          onPointerDown={(event) => {
+            if (document.elementFromPoint(event.clientX, event.clientY)?.closest('.fc-event')) return;
+            const range = readRangeFromTarget(target, 'press');
+            if (!range) return;
+            pointerStart.current = { x: event.clientX, y: event.clientY, range };
+            onPreview(range);
+          }}
+          style={{ left: target.left - bounds.left, top: target.top - bounds.top, width: target.width, height: target.height }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -703,12 +1013,40 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
   const [filter, setFilter] = useState<PlannerFilter>('today');
   const [drawerMode, setDrawerMode] = useState<DrawerMode>();
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
+  const [selectedTaskOccurrenceKey, setSelectedTaskOccurrenceKey] = useState<string>();
   const [selectedEventId, setSelectedEventId] = useState<string>();
+  const [selectedEventOccurrenceKey, setSelectedEventOccurrenceKey] = useState<string>();
   const [eventDraft, setEventDraft] = useState<EventDraft>(() => toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date()));
   const groups = useMemo(() => getTaskListGroups(planner.state, filter), [filter, planner.state]);
   const selectedTask = planner.state.tasks.find((task) => task.id === selectedTaskId);
   const selectedEvent = planner.state.events.find((event) => event.id === selectedEventId);
+  const taskListCopy = getTaskListCopy(planner.state.settings.showTaskItemsInTasks, planner.state.settings.showCalendarEventsInTasks);
+
+  const openItemDetails = (item: PlannerListItem) => {
+    if (item.kind === 'task') {
+      setSelectedTaskId((item.source as Task).id);
+      setSelectedTaskOccurrenceKey(item.occurrenceKey);
+      setSelectedEventId(undefined);
+      setSelectedEventOccurrenceKey(undefined);
+      setTaskDraft(toTaskDraftFromTask(item.source as Task, planner.state.settings.themeColors.taskDefault));
+      setDrawerMode('taskDetails');
+      return;
+    }
+
+    const event = item.source as CalendarEvent;
+    setSelectedEventId(event.id);
+    setSelectedEventOccurrenceKey(item.occurrenceKey ?? item.startsAt);
+    setSelectedTaskId(undefined);
+    setSelectedTaskOccurrenceKey(undefined);
+    setEventDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event, planner.state.settings.themeColors.eventDefault));
+    setDrawerMode('eventDetails');
+  };
+
+  const openItemEdit = (item: PlannerListItem) => {
+    openItemDetails(item);
+    setDrawerMode(item.kind === 'task' ? 'taskForm' : 'eventForm');
+  };
 
   useEffect(() => {
     setFilter('today');
@@ -731,7 +1069,7 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
             <span>Show Events</span>
           </label>
           <SegmentedControl options={['all', 'today', 'upcoming', 'overdue']} value={filter} onChange={(value) => setFilter(value as PlannerFilter)} />
-          <button className="primary-action" onClick={() => { setSelectedTaskId(undefined); setSelectedEventId(undefined); setTaskDraft(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault)); setDrawerMode('taskForm'); }} type="button">
+          <button className="primary-action" onClick={() => { setSelectedTaskId(undefined); setSelectedTaskOccurrenceKey(undefined); setSelectedEventId(undefined); setTaskDraft(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault)); setDrawerMode('taskForm'); }} type="button">
             <ListTodo size={18} />
             Add Task
           </button>
@@ -739,43 +1077,17 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
       </header>
       <div className="task-layout single">
         <ListPanel
-          title={planner.state.settings.showCalendarEventsInTasks ? 'Tasks And Calendar Events' : 'Tasks'}
-          detail={planner.state.settings.showCalendarEventsInTasks ? 'Events can be checked off here without becoming tasks.' : 'Calendar events are hidden here.'}
+          title={taskListCopy.title}
+          detail={taskListCopy.detail}
           empty="Nothing in this list."
         >
           {groups.active.map((item) => (
-            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onOpen={() => {
-              if (item.kind === 'task') {
-                setSelectedTaskId((item.source as Task).id);
-                setSelectedEventId(undefined);
-                setTaskDraft(toTaskDraftFromTask(item.source as Task, planner.state.settings.themeColors.taskDefault));
-                setDrawerMode('taskDetails');
-              } else {
-                const event = item.source as CalendarEvent;
-                setSelectedEventId(event.id);
-                setSelectedTaskId(undefined);
-                setEventDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event, planner.state.settings.themeColors.eventDefault));
-                setDrawerMode('eventDetails');
-              }
-            }} />
+            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} />
           ))}
         </ListPanel>
         <ListPanel title="Completed" detail="Finished Items For This Tab" empty="Nothing completed here yet." initiallyCollapsed>
           {groups.completed.map((item) => (
-            <PlannerItemRow item={item} key={`completed-${item.kind}-${item.id}`} planner={planner} onOpen={() => {
-              if (item.kind === 'task') {
-                setSelectedTaskId((item.source as Task).id);
-                setSelectedEventId(undefined);
-                setTaskDraft(toTaskDraftFromTask(item.source as Task, planner.state.settings.themeColors.taskDefault));
-                setDrawerMode('taskDetails');
-              } else {
-                const event = item.source as CalendarEvent;
-                setSelectedEventId(event.id);
-                setSelectedTaskId(undefined);
-                setEventDraft(toDraft(parseISO(event.startsAt), parseISO(event.endsAt), event, planner.state.settings.themeColors.eventDefault));
-                setDrawerMode('eventDetails');
-              }
-            }} />
+            <PlannerItemRow item={item} key={`completed-${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} />
           ))}
         </ListPanel>
         {drawerMode && (
@@ -787,18 +1099,31 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
                 <DetailsDrawer
                   item={selectedEvent}
                   kind="event"
+                  completed={isEventOccurrenceCompleted(selectedEvent, selectedEventOccurrenceKey)}
                   onClose={() => setDrawerMode(undefined)}
                   onEdit={() => setDrawerMode('eventForm')}
-                  onToggle={() => planner.toggleEvent(selectedEvent)}
+                  onDelete={() => { planner.deleteEvent(selectedEvent.id); setDrawerMode(undefined); }}
+                  onToggle={() => planner.toggleEvent(selectedEvent, selectedEventOccurrenceKey)}
                 />
               )}
               {drawerMode === 'taskDetails' && selectedTask && (
                 <DetailsDrawer
                   item={selectedTask}
                   kind="task"
+                  completed={selectedTaskOccurrenceKey ? isTaskOccurrenceCompleted(selectedTask, selectedTaskOccurrenceKey) : selectedTask.status === 'completed'}
                   onClose={() => setDrawerMode(undefined)}
                   onEdit={() => setDrawerMode('taskForm')}
-                  onToggle={() => planner.toggleTask(selectedTask)}
+                  onDelete={() => {
+                    if (selectedTaskOccurrenceKey && selectedTask.recurrenceRule && selectedTask.completedOccurrences.some((record) => record.occurrenceKey === selectedTaskOccurrenceKey)) {
+                      planner.updateTask(selectedTask.id, {
+                        completedOccurrences: selectedTask.completedOccurrences.filter((record) => record.occurrenceKey !== selectedTaskOccurrenceKey)
+                      });
+                    } else {
+                      planner.deleteTask(selectedTask.id);
+                    }
+                    setDrawerMode(undefined);
+                  }}
+                  onToggle={() => planner.toggleTask(selectedTask, selectedTaskOccurrenceKey)}
                 />
               )}
               {drawerMode === 'taskForm' && (
@@ -811,6 +1136,7 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
                   onSaved={() => {
                     setDrawerMode(undefined);
                     setSelectedTaskId(undefined);
+                    setSelectedTaskOccurrenceKey(undefined);
                     setTaskDraft(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
                   }}
                 />
@@ -1233,6 +1559,7 @@ function EventForm({
     } else {
       planner.addEvent({ ...eventInput, completedOccurrences: [] });
     }
+    rememberCustomColor(planner, draft.color);
     onSaved();
   };
 
@@ -1270,7 +1597,7 @@ function EventForm({
       </label>
       <ColorPicker
         label="Event Color"
-        options={buildColorOptions(planner.state.settings.themeColors.eventDefault, planner.state.settings.themeColors.taskDefault)}
+        options={buildColorOptions(planner.state.settings.themeColors.eventDefault, planner.state.settings.themeColors.taskDefault, planner.state.settings.recentCustomColors)}
         value={draft.color}
         onChange={(color) => setField('color', color)}
       />
@@ -1324,7 +1651,7 @@ function TaskForm({
   onSaved: () => void;
 }) {
   const [error, setError] = useState<string>();
-  const [confirmAction, setConfirmAction] = useState<'reset'>();
+  const [confirmAction, setConfirmAction] = useState<'delete' | 'reset'>();
   const setField = <K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) => onChange({ ...draft, [key]: value });
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -1372,6 +1699,7 @@ function TaskForm({
     } else {
       planner.addTask(taskInput);
     }
+    rememberCustomColor(planner, draft.color);
     onSaved();
   };
 
@@ -1437,7 +1765,7 @@ function TaskForm({
       </label>
       <ColorPicker
         label="Task Color"
-        options={buildColorOptions(planner.state.settings.themeColors.taskDefault, planner.state.settings.themeColors.eventDefault)}
+        options={buildColorOptions(planner.state.settings.themeColors.taskDefault, planner.state.settings.themeColors.eventDefault, planner.state.settings.recentCustomColors)}
         value={draft.color}
         onChange={(color) => setField('color', color)}
       />
@@ -1445,6 +1773,20 @@ function TaskForm({
       <textarea name="notes" placeholder="Notes" value={draft.notes} onChange={(event) => setField('notes', event.target.value)} />
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="form-actions">
+        {editingTaskId && (
+          <ConfirmActionButton
+            actionId="delete"
+            className="danger-action"
+            confirmAction={confirmAction}
+            icon={<Trash2 size={18} />}
+            label="Delete Task"
+            onConfirm={() => {
+              planner.deleteTask(editingTaskId);
+              onSaved();
+            }}
+            setConfirmAction={setConfirmAction}
+          />
+        )}
         <ConfirmActionButton
           actionId="reset"
           className="secondary-action"
@@ -1463,13 +1805,28 @@ function TaskForm({
   );
 }
 
-function PlannerItemRow({ item, planner, onOpen }: { item: PlannerListItem; planner: ReturnType<typeof usePlanner>; onOpen?: () => void }) {
+function PlannerItemRow({ item, planner, onEdit, onOpen }: { item: PlannerListItem; planner: ReturnType<typeof usePlanner>; onEdit?: () => void; onOpen?: () => void }) {
   const when = formatItemTime(item);
   const source = item.source;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const toggle = () => item.kind === 'task'
     ? planner.toggleTask(source as Task, item.occurrenceKey ?? item.endsAt ?? item.dueAt)
-    : planner.toggleEvent(source as CalendarEvent, item.startsAt);
+    : planner.toggleEvent(source as CalendarEvent, item.occurrenceKey ?? item.startsAt);
+  const deleteItem = () => {
+    if (item.kind === 'task') {
+      const task = source as Task;
+      if (item.completed && task.recurrenceRule && item.occurrenceKey) {
+        planner.updateTask(task.id, {
+          completedOccurrences: task.completedOccurrences.filter((record) => record.occurrenceKey !== item.occurrenceKey)
+        });
+        return;
+      }
+      planner.deleteTask(task.id);
+      return;
+    }
+
+    planner.deleteEvent((source as CalendarEvent).id);
+  };
 
   return (
     <div
@@ -1491,12 +1848,23 @@ function PlannerItemRow({ item, planner, onOpen }: { item: PlannerListItem; plan
       <div className="item-main">
         <strong>{item.title}</strong>
         <span>{when}</span>
+        <span className="item-meta">{item.kind === 'task' ? item.priority : item.importance}</span>
         {item.notes && <span className="item-notes">{item.notes}</span>}
         {item.completedAt && <span className="completed-time">Completed {format(parseISO(item.completedAt), 'MMM d, h:mm a')}</span>}
       </div>
-      <small>{item.kind === 'task' ? item.priority : item.importance}</small>
-      {item.kind === 'event' && item.importance === 'high' && <Star size={16} />}
-      <button
+      <div className="row-actions">
+        {item.kind === 'event' && item.importance === 'high' && <Star size={16} />}
+        {onEdit && (
+        <button
+          className="icon-action"
+          onClick={(event) => { event.stopPropagation(); onEdit(); }}
+          title={item.kind === 'task' ? 'Edit Task' : 'Edit Event'}
+          type="button"
+        >
+          <Pencil size={16} />
+        </button>
+        )}
+        <button
         className={confirmDelete ? 'danger-action row-confirm-delete' : 'icon-action'}
         onClick={(event) => {
           event.stopPropagation();
@@ -1504,14 +1872,15 @@ function PlannerItemRow({ item, planner, onOpen }: { item: PlannerListItem; plan
             setConfirmDelete(true);
             return;
           }
-          item.kind === 'task' ? planner.deleteTask((source as Task).id) : planner.deleteEvent((source as CalendarEvent).id);
+          deleteItem();
         }}
         onBlur={() => window.setTimeout(() => setConfirmDelete(false), 120)}
         title={item.kind === 'task' ? 'Delete Task' : 'Delete Event'}
         type="button"
       >
         {confirmDelete ? 'Confirm' : <Trash2 size={16} />}
-      </button>
+        </button>
+      </div>
     </div>
   );
 }
@@ -1591,8 +1960,16 @@ function ColorPicker({ label, options = eventColors, value, onChange }: { label:
   );
 }
 
-function buildColorOptions(primaryDefault: string, secondaryDefault: string): string[] {
-  return Array.from(new Set([primaryDefault, secondaryDefault, ...eventColors])).slice(0, 5);
+function buildColorOptions(primaryDefault: string, secondaryDefault: string, recentCustomColors: string[] = []): string[] {
+  return Array.from(new Set([primaryDefault, secondaryDefault, ...recentCustomColors, ...eventColors])).slice(0, 8);
+}
+
+function rememberCustomColor(planner: ReturnType<typeof usePlanner>, color: string) {
+  const settings = planner.state.settings;
+  const builtIns = new Set([settings.themeColors.taskDefault, settings.themeColors.eventDefault, ...eventColors]);
+  if (!/^#[0-9a-f]{6}$/i.test(color) || builtIns.has(color)) return;
+  const recentCustomColors = [color, ...settings.recentCustomColors.filter((candidate) => candidate !== color)].slice(0, 5);
+  planner.updateSettings({ ...settings, recentCustomColors });
 }
 
 function ChoiceDrawer({ onClose, onEvent, onTask }: { onClose: () => void; onEvent: () => void; onTask: () => void }) {
@@ -1606,22 +1983,27 @@ function ChoiceDrawer({ onClose, onEvent, onTask }: { onClose: () => void; onEve
 }
 
 function DetailsDrawer({
+  completed,
   item,
   kind,
   onClose,
+  onDelete,
   onEdit,
   onToggle
 }: {
+  completed?: boolean;
   item?: Task | CalendarEvent;
   kind: 'task' | 'event';
   onClose: () => void;
+  onDelete?: () => void;
   onEdit: () => void;
   onToggle: () => void;
 }) {
+  const [confirmAction, setConfirmAction] = useState<'delete'>();
   if (!item) return null;
   const startsAt = 'startsAt' in item ? item.startsAt : undefined;
   const endsAt = 'endsAt' in item ? item.endsAt : undefined;
-  const complete = 'status' in item ? item.status === 'completed' : item.completedOccurrences.length > 0;
+  const complete = completed ?? ('status' in item ? item.status === 'completed' : item.completedOccurrences.length > 0);
 
   return (
     <section className="panel form-panel drawer-panel" onMouseDown={(event) => event.stopPropagation()}>
@@ -1634,6 +2016,17 @@ function DetailsDrawer({
         {item.notes && <DetailLine label="Notes" value={item.notes} />}
       </div>
       <div className="form-actions">
+        {onDelete && (
+          <ConfirmActionButton
+            actionId="delete"
+            className="danger-action"
+            confirmAction={confirmAction}
+            icon={<Trash2 size={18} />}
+            label={kind === 'task' ? 'Delete Task' : 'Delete Event'}
+            onConfirm={onDelete}
+            setConfirmAction={setConfirmAction}
+          />
+        )}
         <button className="secondary-action" onClick={onToggle} type="button">{complete ? 'Mark Incomplete' : 'Mark Complete'}</button>
         <button className="primary-action" onClick={onEdit} type="button">Edit</button>
       </div>
@@ -1957,6 +2350,34 @@ function PanelTitle({ title, detail }: { title: string; detail: string }) {
       <p>{detail}</p>
     </div>
   );
+}
+
+function getTaskListCopy(showTasks: boolean, showEvents: boolean): { title: string; detail: string } {
+  if (showTasks && showEvents) {
+    return {
+      title: 'Tasks And Events',
+      detail: 'Plan work and scheduled events from one checklist.'
+    };
+  }
+
+  if (showEvents) {
+    return {
+      title: 'Calendar Events',
+      detail: 'Scheduled events shown as checklist items.'
+    };
+  }
+
+  if (showTasks) {
+    return {
+      title: 'Tasks',
+      detail: 'Action items organized by timing and completion.'
+    };
+  }
+
+  return {
+    title: 'No Items Shown',
+    detail: 'Turn on tasks or events to populate this list.'
+  };
 }
 
 function DrawerHeader({ title, detail, onClose }: { title: string; detail: string; onClose: () => void }) {

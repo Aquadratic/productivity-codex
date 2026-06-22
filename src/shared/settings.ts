@@ -26,6 +26,7 @@ export function normalizeSettings(settings: Partial<AppSettings> | undefined): A
     popupPosition: normalizePopupPosition(merged.popupPosition),
     themePreset: normalizeThemePreset(merged.themePreset),
     themeColors: normalizeThemeColors(merged.themePreset, merged.themeColors),
+    recentCustomColors: normalizeRecentCustomColors(merged.recentCustomColors),
     calendarStartHour,
     calendarEndHour: calendarEndHour === calendarStartHour ? defaultSettings.calendarEndHour : calendarEndHour,
     soundVolume,
@@ -165,4 +166,12 @@ function normalizePopupPosition(value: unknown): AppSettings['popupPosition'] {
   }
 
   return defaultSettings.popupPosition;
+}
+
+function normalizeRecentCustomColors(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(new Set(value.filter((color): color is string => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)))).slice(0, 5);
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isEventOccurrenceCompleted, toggleEventCompletion, validateEventTime } from './events';
+import { createRecurrenceRule } from './recurrence';
 import type { CalendarEvent } from './types';
 
 function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
@@ -27,6 +28,21 @@ describe('events', () => {
 
     expect(isEventOccurrenceCompleted(completed)).toBe(true);
     expect(isEventOccurrenceCompleted(reopened)).toBe(false);
+  });
+
+  it('advances recurring events and restores an uncompleted occurrence', () => {
+    const recurring = toggleEventCompletion(
+      event({ recurrenceRule: createRecurrenceRule({ frequency: 'daily', interval: 1 }) }),
+      '2026-06-20T15:00:00.000Z'
+    );
+    const restored = toggleEventCompletion(recurring, '2026-06-20T15:00:00.000Z');
+
+    expect(isEventOccurrenceCompleted(recurring, '2026-06-20T15:00:00.000Z')).toBe(true);
+    expect(recurring.startsAt).toBe('2026-06-21T15:00:00.000Z');
+    expect(recurring.endsAt).toBe('2026-06-21T16:00:00.000Z');
+    expect(restored.completedOccurrences).toEqual([]);
+    expect(restored.startsAt).toBe('2026-06-20T15:00:00.000Z');
+    expect(restored.endsAt).toBe('2026-06-20T16:00:00.000Z');
   });
 
   it('rejects same-day end before start', () => {

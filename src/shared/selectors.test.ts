@@ -147,7 +147,7 @@ describe('selectors', () => {
     expect(grouped.completed.map((item) => item.title)).toEqual(['Done later']);
   });
 
-  it('maps tasks and recurring events into calendar items based on visibility settings', () => {
+  it('maps the current task and event occurrences into calendar items based on visibility settings', () => {
     const calendarState = state({
       events: [{
         ...state().events[0],
@@ -161,7 +161,6 @@ describe('selectors', () => {
     });
 
     expect(getCalendarViewEvents(calendarState, new Date('2026-06-20T00:00:00.000Z'), new Date('2026-06-22T00:00:00.000Z')).map((item) => item.extendedProps.kind)).toEqual([
-      'event',
       'event',
       'task'
     ]);

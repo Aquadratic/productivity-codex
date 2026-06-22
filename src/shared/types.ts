@@ -102,6 +102,7 @@ export interface AppSettings {
   popupPosition: { x: number; y: number };
   themePreset: ThemePreset;
   themeColors: ThemeColors;
+  recentCustomColors: string[];
   calendarStartHour: number;
   calendarEndHour: number;
   upcomingRange: UpcomingRange;
@@ -128,15 +129,15 @@ export const lightThemeColors: ThemeColors = {
 };
 
 export const darkThemeColors: ThemeColors = {
-  sidebar: '#0c1630',
-  pageBackground: '#10192d',
-  panelBackground: '#192640',
-  accent: '#86a8e7',
-  taskDefault: '#86a8e7',
-  eventDefault: '#a8b7ee',
-  textPrimary: '#f8fafc',
-  textMuted: '#cbd5e1',
-  textOnAccent: '#061020'
+  sidebar: '#071225',
+  pageBackground: '#0b1220',
+  panelBackground: '#162033',
+  accent: '#9bbcff',
+  taskDefault: '#9bbcff',
+  eventDefault: '#bac7ff',
+  textPrimary: '#ffffff',
+  textMuted: '#d7e2f2',
+  textOnAccent: '#031024'
 };
 
 export const defaultSettings: AppSettings = {
@@ -151,6 +152,7 @@ export const defaultSettings: AppSettings = {
   popupPosition: { x: 0, y: 0 },
   themePreset: 'light',
   themeColors: lightThemeColors,
+  recentCustomColors: [],
   calendarStartHour: 6,
   calendarEndHour: 22,
   upcomingRange: 'all',

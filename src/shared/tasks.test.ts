@@ -47,6 +47,24 @@ describe('tasks', () => {
     expect(recurring.dueAt).toBe('2026-06-21T14:00:00.000Z');
   });
 
+  it('undoes a recurring completed occurrence by restoring it as active', () => {
+    const recurring = completeTaskOccurrence(
+      task({
+        startsAt: '2026-06-20T13:00:00.000Z',
+        endsAt: '2026-06-20T14:00:00.000Z',
+        recurrenceRule: createRecurrenceRule({ frequency: 'daily', interval: 1 })
+      }),
+      '2026-06-20T14:00:00.000Z'
+    );
+    const restored = toggleTaskCompletion(recurring, '2026-06-20T14:00:00.000Z');
+
+    expect(restored.status).toBe('open');
+    expect(restored.completedOccurrences).toEqual([]);
+    expect(restored.startsAt).toBe('2026-06-20T13:00:00.000Z');
+    expect(restored.endsAt).toBe('2026-06-20T14:00:00.000Z');
+    expect(restored.dueAt).toBe('2026-06-20T14:00:00.000Z');
+  });
+
   it('advances overdue recurring tasks without completion records', () => {
     const [advanced] = advanceOverdueRecurringTasks([
       task({ recurrenceRule: createRecurrenceRule({ frequency: 'daily', interval: 1 }) })
