@@ -27,5 +27,6 @@ describe('ui helpers', () => {
       themePreset: 'custom',
       themeColors: { ...defaultSettings.themeColors, accent: '#123456' }
     })['--color-accent']).toBe('#123456');
+    expect(buildThemeVariables(defaultSettings)['--color-text']).toBe('#17211b');
   });
 });

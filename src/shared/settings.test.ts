@@ -10,7 +10,16 @@ describe('settings', () => {
     expect(normalizeSettings({ notificationsEnabled: false }).sidebarCollapsed).toBe(false);
     expect(normalizeSettings({ notificationsEnabled: false }).themePreset).toBe('light');
     expect(normalizeSettings({ notificationsEnabled: false }).themeColors.taskDefault).toBe('#23693c');
+    expect(normalizeSettings({ notificationsEnabled: false }).themeColors.textPrimary).toBe('#17211b');
     expect(normalizeSettings({ notificationsEnabled: false }).pomodoroFocusMinutes).toBe(25);
+  });
+
+  it('normalizes dark theme text colors', () => {
+    const settings = normalizeSettings({ themePreset: 'dark', themeColors: {} as never });
+
+    expect(settings.themeColors.textPrimary).toBe('#edf5ee');
+    expect(settings.themeColors.textMuted).toBe('#b9c8bc');
+    expect(settings.themeColors.textOnAccent).toBe('#102116');
   });
 
   it('normalizes older planner state', () => {

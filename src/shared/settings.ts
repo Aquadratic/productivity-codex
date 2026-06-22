@@ -138,6 +138,9 @@ function normalizeThemeColors(preset: unknown, value: unknown): ThemeColors {
     panelBackground: typeof colors.panelBackground === 'string' ? colors.panelBackground : base.panelBackground,
     accent: typeof colors.accent === 'string' ? colors.accent : base.accent,
     taskDefault: typeof colors.taskDefault === 'string' ? colors.taskDefault : base.taskDefault,
-    eventDefault: typeof colors.eventDefault === 'string' ? colors.eventDefault : base.eventDefault
+    eventDefault: typeof colors.eventDefault === 'string' ? colors.eventDefault : base.eventDefault,
+    textPrimary: typeof colors.textPrimary === 'string' ? colors.textPrimary : base.textPrimary,
+    textMuted: typeof colors.textMuted === 'string' ? colors.textMuted : base.textMuted,
+    textOnAccent: typeof colors.textOnAccent === 'string' ? colors.textOnAccent : base.textOnAccent
   };
 }

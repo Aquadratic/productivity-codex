@@ -15,6 +15,9 @@ export interface ThemeColors {
   accent: string;
   taskDefault: string;
   eventDefault: string;
+  textPrimary: string;
+  textMuted: string;
+  textOnAccent: string;
 }
 
 export interface CompletionRecord {
@@ -116,7 +119,10 @@ export const lightThemeColors: ThemeColors = {
   panelBackground: '#ffffff',
   accent: '#23693c',
   taskDefault: '#23693c',
-  eventDefault: '#5578a6'
+  eventDefault: '#5578a6',
+  textPrimary: '#17211b',
+  textMuted: '#667466',
+  textOnAccent: '#ffffff'
 };
 
 export const darkThemeColors: ThemeColors = {
@@ -125,7 +131,10 @@ export const darkThemeColors: ThemeColors = {
   panelBackground: '#202722',
   accent: '#7bbd8b',
   taskDefault: '#7bbd8b',
-  eventDefault: '#8aa8d8'
+  eventDefault: '#8aa8d8',
+  textPrimary: '#edf5ee',
+  textMuted: '#b9c8bc',
+  textOnAccent: '#102116'
 };
 
 export const defaultSettings: AppSettings = {

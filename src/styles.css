@@ -1,5 +1,5 @@
 :root {
-  color: #17211b;
+  color: var(--color-text, #17211b);
   background: var(--color-page, #eef1eb);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -54,7 +54,11 @@ textarea:focus-visible {
   --color-accent: #23693c;
   --color-task: #23693c;
   --color-event: #5578a6;
+  --color-text: #17211b;
+  --color-muted: #667466;
+  --color-on-accent: #ffffff;
   background: var(--color-page);
+  color: var(--color-text);
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
@@ -125,7 +129,7 @@ textarea:focus-visible {
 }
 
 .eyebrow {
-  color: #5d6d62;
+  color: var(--color-muted);
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -201,7 +205,7 @@ nav {
   border: 1px solid #dbe3d9;
   border-radius: 8px;
   box-shadow: 0 8px 20px rgba(36, 47, 42, 0.08);
-  color: #17211b;
+  color: var(--color-text);
   font-weight: 800;
   min-width: 118px;
   padding: 9px 12px;
@@ -231,7 +235,7 @@ nav {
 }
 
 .header-note {
-  color: #637066;
+  color: var(--color-muted);
   margin: 0;
 }
 
@@ -290,7 +294,7 @@ nav {
 }
 
 .panel-title p {
-  color: #667466;
+  color: var(--color-muted);
   margin: 3px 0 0;
 }
 
@@ -320,7 +324,7 @@ nav {
 }
 
 .metric-card span {
-  color: #667466;
+  color: var(--color-muted);
   font-size: 0.88rem;
 }
 
@@ -335,12 +339,12 @@ nav {
 
 .primary-action {
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-on-accent);
 }
 
 .secondary-action {
-  background: #e7ece4;
-  color: #26362c;
+  background: color-mix(in srgb, var(--color-panel) 78%, var(--color-page));
+  color: var(--color-text);
 }
 
 .danger-action {
@@ -350,8 +354,8 @@ nav {
 }
 
 .icon-action {
-  background: #eef2ea;
-  color: #26362c;
+  background: color-mix(in srgb, var(--color-panel) 78%, var(--color-page));
+  color: var(--color-text);
   height: 34px;
   min-height: 34px;
   min-width: 34px;
@@ -369,10 +373,10 @@ nav {
 
 .hidden-count {
   align-items: center;
-  background: #f5f7f2;
+  background: color-mix(in srgb, var(--color-panel) 82%, var(--color-page));
   border: 1px dashed #d5dfd2;
   border-radius: 8px;
-  color: #5d6d62;
+  color: var(--color-muted);
   display: inline-flex;
   font-weight: 800;
   margin: 0;
@@ -382,7 +386,7 @@ nav {
 
 .list-row {
   align-items: start;
-  background: #f8faf5;
+  background: color-mix(in srgb, var(--color-panel) 84%, var(--color-page));
   border: 1px solid #e2e9df;
   border-left: 4px solid #7b9f84;
   border-radius: 8px;
@@ -422,7 +426,7 @@ nav {
 
 .item-main span,
 .list-row small {
-  color: #667466;
+  color: var(--color-muted);
   font-size: 0.86rem;
 }
 
@@ -432,7 +436,7 @@ nav {
 }
 
 .item-main .completed-time {
-  color: #516154;
+  color: var(--color-muted);
   font-weight: 700;
 }
 
@@ -441,6 +445,7 @@ nav {
   min-height: 520px;
   overflow: hidden;
   padding: 10px;
+  position: relative;
 }
 
 .calendar-panel .fc {
@@ -455,6 +460,7 @@ nav {
   --fc-event-bg-color: var(--color-event);
   --fc-event-border-color: var(--color-event);
   --fc-today-bg-color: rgba(35, 105, 60, 0.09);
+  color: var(--color-text);
 }
 
 .calendar-panel .fc-toolbar {
@@ -523,12 +529,53 @@ nav {
 
 .calendar-panel .fc-timegrid-slot-label {
   vertical-align: top;
+  border-top-color: transparent !important;
 }
 
 .calendar-panel .fc-timegrid-axis-cushion,
 .calendar-panel .fc-timegrid-slot-label-cushion {
+  background: var(--color-panel);
+  color: var(--color-muted);
   display: inline-block;
   padding-right: 8px;
+}
+
+.calendar-panel .fc-timegrid-axis,
+.calendar-panel .fc-timegrid-slot-label {
+  border-right-color: var(--fc-border-color) !important;
+}
+
+.calendar-panel .fc-timegrid-slot-lane {
+  border-left: 0;
+}
+
+.calendar-hit-layer {
+  inset: 10px;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.calendar-hit-target {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  pointer-events: auto;
+  position: absolute;
+}
+
+.calendar-hit-target:hover,
+.calendar-hit-target:focus {
+  background: transparent;
+}
+
+.calendar-panel .fc-timegrid-event-harness,
+.calendar-panel .fc-event {
+  position: relative;
+  z-index: 4;
 }
 
 .calendar-panel .fc-daygrid-event-harness,
@@ -653,7 +700,7 @@ nav {
 }
 
 .time-parts legend {
-  color: #4d5a50;
+  color: var(--color-muted);
   font-size: 0.88rem;
   font-weight: 700;
   grid-column: 1 / -1;
@@ -670,7 +717,7 @@ textarea {
   background: color-mix(in srgb, var(--color-panel) 88%, #ffffff);
   border: 1px solid #d9e2d8;
   border-radius: 8px;
-  color: #17211b;
+  color: var(--color-text);
   min-height: 40px;
   padding: 9px 10px;
   width: 100%;
@@ -724,7 +771,7 @@ textarea {
 }
 
 .segmented {
-  background: #e8eee6;
+  background: color-mix(in srgb, var(--color-panel) 70%, var(--color-page));
   border-radius: 8px;
   display: flex;
   gap: 4px;
@@ -733,14 +780,14 @@ textarea {
 
 .segmented button {
   background: transparent;
-  color: #39463c;
+  color: var(--color-text);
   min-height: 34px;
   padding: 0 12px;
   text-transform: capitalize;
 }
 
 .segmented button.selected {
-  background: #ffffff;
+  background: var(--color-panel);
   box-shadow: 0 1px 5px rgba(30, 40, 35, 0.12);
 }
 
@@ -792,7 +839,7 @@ textarea {
 }
 
 .pomodoro-summary span {
-  color: #5d6d62;
+  color: var(--color-muted);
 }
 
 .theme-color-grid {
@@ -821,7 +868,7 @@ textarea {
 }
 
 .timer-meta {
-  color: #667466;
+  color: var(--color-muted);
   margin: 0;
   text-align: center;
 }
@@ -850,7 +897,7 @@ textarea {
 }
 
 .recurrence-box legend {
-  color: #5d6d62;
+  color: var(--color-muted);
   font-weight: 800;
   padding: 0 6px;
 }
@@ -872,7 +919,7 @@ textarea {
 .weekday-grid label,
 .month-grid label {
   align-items: center;
-  background: #f6f8f3;
+  background: color-mix(in srgb, var(--color-panel) 82%, var(--color-page));
   border: 1px solid #d9e2d8;
   border-radius: 8px;
   display: grid;
@@ -897,7 +944,7 @@ textarea {
 }
 
 .color-picker legend {
-  color: #5d6d62;
+  color: var(--color-muted);
   font-weight: 800;
   padding: 0 6px;
 }
@@ -930,7 +977,7 @@ textarea {
 }
 
 .color-grid input:checked + span {
-  box-shadow: 0 0 0 3px #17211b;
+  box-shadow: 0 0 0 3px var(--color-text);
 }
 
 .form-error {
@@ -948,7 +995,7 @@ textarea {
 }
 
 .detail-line {
-  background: #f7faf4;
+  background: color-mix(in srgb, var(--color-panel) 86%, var(--color-page));
   border: 1px solid #e1e8df;
   border-radius: 8px;
   display: grid;
@@ -958,7 +1005,7 @@ textarea {
 
 .detail-line span,
 .field-hint {
-  color: #667466;
+  color: var(--color-muted);
   font-size: 0.86rem;
   font-weight: 700;
   margin: 0;
@@ -979,7 +1026,7 @@ textarea {
 }
 
 .confirm-box p {
-  color: #5e604f;
+  color: var(--color-muted);
   margin: 0;
 }
 
@@ -1015,7 +1062,7 @@ textarea {
 }
 
 .empty-state {
-  color: #6b766d;
+  color: var(--color-muted);
   margin: 8px 0;
 }
 

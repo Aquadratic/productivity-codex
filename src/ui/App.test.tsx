@@ -93,15 +93,14 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Dashboard' });
     await userEvent.click(navButton(/Tasks/i));
     await userEvent.click(screen.getByRole('button', { name: /Add task/i }));
-    await userEvent.type(screen.getByPlaceholderText('Task Title'), 'Temporary task');
+    await userEvent.type(await screen.findByPlaceholderText('Task Title'), 'Temporary task');
     const addTaskButtons = screen.getAllByRole('button', { name: /Add task/i });
     await userEvent.click(addTaskButtons[addTaskButtons.length - 1]);
     expect(await screen.findByText('Temporary task')).toBeInTheDocument();
 
     await userEvent.click(navButton(/Settings/i));
     await userEvent.click(screen.getByRole('button', { name: /Reset test data/i }));
-    const resetButtons = screen.getAllByRole('button', { name: /Reset test data/i });
-    await userEvent.click(resetButtons[resetButtons.length - 1]);
+    await userEvent.click(screen.getByRole('button', { name: /Confirm/i }));
     await userEvent.click(navButton(/Tasks/i));
     expect(screen.queryByText('Temporary task')).not.toBeInTheDocument();
   });

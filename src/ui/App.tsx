@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  Download,
   GripHorizontal,
   LayoutDashboard,
   ListTodo,
@@ -27,7 +28,7 @@ import {
   Volume2,
   X
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type ReactNode, type SetStateAction } from 'react';
 import {
   darkThemeColors,
   lightThemeColors,
@@ -43,6 +44,7 @@ import {
 import { createCustomRecurrenceRule, parseRecurrenceRule, type RecurrenceDraft } from '../shared/recurrence';
 import { validateEventTime } from '../shared/events';
 import { getSoundChoice, soundChoices } from '../shared/sounds';
+import { buildPlannerExport, buildPlannerExportFilename } from '../shared/export';
 import { durationPartsToSeconds, formatTimer, getTimerSnapshot, isValidTimerDuration, secondsToDurationParts } from '../shared/timer';
 import { getCalendarViewEvents, getTaskListGroups, getUpcomingItems, type PlannerFilter, type PlannerListItem } from '../shared/selectors';
 import { buildThemeVariables, calendarClickRange, wrapMinute } from '../shared/uiHelpers';
@@ -104,6 +106,16 @@ type UndoState = {
   id: string;
   previous: { startsAt?: string; endsAt: string; dueAt?: string; allDay: boolean };
 };
+type CalendarHitArea = {
+  id: string;
+  label: string;
+  kind: 'box' | 'line';
+  startsAt: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 
 const eventColors = ['#5578a6', '#23693c', '#8f4d32', '#7b4fa3', '#b2671d', '#2f7f7b'];
 const themeColorFields: Array<{ key: keyof ThemeColors; label: string }> = [
@@ -112,7 +124,10 @@ const themeColorFields: Array<{ key: keyof ThemeColors; label: string }> = [
   { key: 'panelBackground', label: 'Panel Background' },
   { key: 'accent', label: 'Accent' },
   { key: 'taskDefault', label: 'Task Default' },
-  { key: 'eventDefault', label: 'Event Default' }
+  { key: 'eventDefault', label: 'Event Default' },
+  { key: 'textPrimary', label: 'Text Primary' },
+  { key: 'textMuted', label: 'Text Muted' },
+  { key: 'textOnAccent', label: 'Text On Accent' }
 ];
 
 const monthOptions = [
@@ -275,6 +290,7 @@ function Dashboard({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 }
 
 function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
+  const calendarPanelRef = useRef<HTMLElement>(null);
   const [draft, setDraft] = useState<EventDraft>(() => toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
   const [drawerMode, setDrawerMode] = useState<DrawerMode>();
@@ -282,6 +298,8 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [pendingSelection, setPendingSelection] = useState<PendingSelection>(() => ({ start: new Date(), end: addMinutes(new Date(), 60) }));
   const [calendarRange, setCalendarRange] = useState(() => ({ start: subDays(new Date(), 30), end: addDays(new Date(), 60) }));
+  const [calendarViewType, setCalendarViewType] = useState('timeGridWeek');
+  const [hitAreas, setHitAreas] = useState<CalendarHitArea[]>([]);
   const [undo, setUndo] = useState<UndoState>();
   const settings = planner.state.settings;
 
@@ -321,13 +339,6 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       openChoice(start, addMinutes(start, 60));
       return;
     }
-
-    const target = arg.jsEvent?.target instanceof HTMLElement ? arg.jsEvent.target : undefined;
-    const rect = target?.getBoundingClientRect();
-    const relativeY = rect ? arg.jsEvent.clientY - rect.top : 20;
-    const isLineClick = relativeY <= 3 || (rect ? rect.height - relativeY <= 3 : false);
-    const range = calendarClickRange(arg.date, isLineClick);
-    openChoice(range.start, range.end);
   };
 
   const handleEventClick = (arg: EventClickArg) => {
@@ -411,6 +422,66 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     return () => window.clearTimeout(timeout);
   }, [undo]);
 
+  useEffect(() => {
+    if (!calendarViewType.startsWith('timeGrid')) {
+      setHitAreas([]);
+      return undefined;
+    }
+
+    const panel = calendarPanelRef.current;
+    if (!panel) return undefined;
+
+    const measure = () => {
+      const panelRect = panel.getBoundingClientRect();
+      const cols = Array.from(panel.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]'));
+      const slots = Array.from(panel.querySelectorAll<HTMLElement>('.fc-timegrid-slot-lane[data-time]'));
+      const nextAreas: CalendarHitArea[] = [];
+
+      cols.forEach((col) => {
+        const date = col.dataset.date;
+        if (!date) return;
+        const colRect = col.getBoundingClientRect();
+        if (colRect.width <= 0) return;
+        slots.forEach((slot) => {
+          const time = slot.dataset.time;
+          if (!time) return;
+          const slotRect = slot.getBoundingClientRect();
+          if (slotRect.height <= 0) return;
+          const startsAt = `${date}T${time}`;
+          nextAreas.push({
+            id: `box-${date}-${time}`,
+            label: `${date} ${time} hour`,
+            kind: 'box',
+            startsAt,
+            left: colRect.left - panelRect.left,
+            top: slotRect.top - panelRect.top,
+            width: colRect.width,
+            height: slotRect.height,
+          });
+          nextAreas.push({
+            id: `line-${date}-${time}`,
+            label: `${date} ${time} line`,
+            kind: 'line',
+            startsAt,
+            left: colRect.left - panelRect.left,
+            top: slotRect.top - panelRect.top - 3,
+            width: colRect.width,
+            height: 6,
+          });
+        });
+      });
+      setHitAreas(nextAreas);
+    };
+
+    window.setTimeout(measure, 0);
+    window.addEventListener('resize', measure);
+    panel.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      panel.removeEventListener('scroll', measure, true);
+    };
+  }, [calendarViewType, calendarRange.start, calendarRange.end]);
+
   const restoreUndo = () => {
     if (!undo) return;
     if (undo.kind === 'event') {
@@ -444,7 +515,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         </div>
       </header>
       <div className="calendar-layout single">
-        <section className="panel calendar-panel" aria-label="Calendar">
+        <section className="panel calendar-panel" aria-label="Calendar" ref={calendarPanelRef}>
           <FullCalendar
             allDaySlot
             dateClick={handleDateClick}
@@ -469,6 +540,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             selectable
             select={(selection) => {
+              if (selection.view.type.startsWith('timeGrid')) return;
               if (selection.allDay) {
                 const endDate = subDays(selection.end, 1);
                 const now = new Date();
@@ -481,7 +553,10 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
                 openChoice(selection.start, selection.end);
               }
             }}
-            datesSet={(arg) => setCalendarRange({ start: arg.start, end: arg.end })}
+            datesSet={(arg) => {
+              setCalendarRange({ start: arg.start, end: arg.end });
+              setCalendarViewType(arg.view.type);
+            }}
             eventDrop={updateDroppedItem}
             eventResize={updateDroppedItem}
             slotDuration="01:00:00"
@@ -497,6 +572,24 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             }}
             eventTimeFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
           />
+          {hitAreas.length > 0 && (
+            <div className="calendar-hit-layer" aria-label="Calendar Hour Selection Layer">
+              {hitAreas.map((area) => (
+                <button
+                  aria-label={area.label}
+                  className={`calendar-hit-target ${area.kind}`}
+                  data-hit-kind={area.kind}
+                  key={area.id}
+                  onClick={() => {
+                    const range = calendarClickRange(new Date(area.startsAt), area.kind === 'line');
+                    openChoice(range.start, range.end);
+                  }}
+                  style={{ left: area.left, top: area.top, width: area.width, height: area.height }}
+                  type="button"
+                />
+              ))}
+            </div>
+          )}
         </section>
         {drawerMode && (
           <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
@@ -705,6 +798,8 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     loopingAudio.current = undefined;
   };
 
+  useEffect(() => () => stopCompleteSound(), []);
+
   const dismissCompletion = () => {
     stopCompleteSound();
     planner.dismissCompletedTimer();
@@ -849,7 +944,21 @@ function TimerView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 
 function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const settings = planner.state.settings;
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<string>();
+
+  const exportPlannerData = () => {
+    const exportedAt = new Date();
+    const payload = buildPlannerExport(planner.state, exportedAt);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = buildPlannerExportFilename(exportedAt);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="settings-screen">
@@ -931,23 +1040,24 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <NumberSetting label="Sessions Before Long Break" value={settings.pomodoroSessionsBeforeLongBreak} onChange={(value) => planner.updateSettings({ ...settings, pomodoroSessionsBeforeLongBreak: value })} />
         </section>
         <SoundControls planner={planner} />
-        <button className="danger-action" onClick={() => setConfirmReset(true)} type="button">
-          <RotateCcw size={18} />
-          Reset Test Data
-        </button>
-        {confirmReset && (
-          <ConfirmDialog
-            title="Reset Test Data?"
-            body="This clears local planner data and restores the default state."
-            confirmLabel="Reset Test Data"
-            danger
-            onCancel={() => setConfirmReset(false)}
+        <div className="form-actions settings-actions">
+          <button className="secondary-action" onClick={exportPlannerData} type="button">
+            <Download size={18} />
+            Export Planner Data
+          </button>
+          <ConfirmActionButton
+            actionId="settings-reset"
+            className="danger-action"
+            confirmAction={confirmAction}
+            icon={<RotateCcw size={18} />}
+            label="Reset Test Data"
             onConfirm={() => {
               planner.resetPlanner();
-              setConfirmReset(false);
+              setConfirmAction(undefined);
             }}
+            setConfirmAction={setConfirmAction}
           />
-        )}
+        </div>
       </section>
     </div>
   );
@@ -1048,35 +1158,33 @@ function EventForm({
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="form-actions">
         {editingEventId && (
-          <button className="danger-action" type="button" onClick={() => setConfirmAction('delete')}>
-            <Trash2 size={18} />
-            Delete Event
-          </button>
-        )}
-        <button className="secondary-action" type="button" onClick={() => setConfirmAction('reset')}>
-          <RotateCcw size={18} />
-          Reset
-        </button>
-        <button className="primary-action" type="submit">{editingEventId ? 'Save Event' : 'Add Event'}</button>
-      </div>
-      {confirmAction && (
-        <ConfirmDialog
-          title={confirmAction === 'delete' ? 'Delete Event?' : 'Reset Event?'}
-          body={confirmAction === 'delete' ? 'This removes the event from your calendar.' : 'This clears the current draft and uses the current date and time.'}
-          confirmLabel={confirmAction === 'delete' ? 'Delete Event' : 'Reset'}
-          danger={confirmAction === 'delete'}
-          onCancel={() => setConfirmAction(undefined)}
-          onConfirm={() => {
-            if (confirmAction === 'delete' && editingEventId) {
+          <ConfirmActionButton
+            actionId="delete"
+            className="danger-action"
+            confirmAction={confirmAction}
+            icon={<Trash2 size={18} />}
+            label="Delete Event"
+            onConfirm={() => {
               planner.deleteEvent(editingEventId);
               onSaved();
-            } else {
-              onChange(toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
-              setConfirmAction(undefined);
-            }
+            }}
+            setConfirmAction={setConfirmAction}
+          />
+        )}
+        <ConfirmActionButton
+          actionId="reset"
+          className="secondary-action"
+          confirmAction={confirmAction}
+          icon={<RotateCcw size={18} />}
+          label="Reset"
+          onConfirm={() => {
+            onChange(toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
+            setConfirmAction(undefined);
           }}
+          setConfirmAction={setConfirmAction}
         />
-      )}
+        <button className="primary-action" type="submit">{editingEventId ? 'Save Event' : 'Add Event'}</button>
+      </div>
     </form>
   );
 }
@@ -1213,24 +1321,20 @@ function TaskForm({
       <textarea name="notes" placeholder="Notes" value={draft.notes} onChange={(event) => setField('notes', event.target.value)} />
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="form-actions">
-        <button className="secondary-action" type="button" onClick={() => setConfirmAction('reset')}>
-          <RotateCcw size={18} />
-          Reset
-        </button>
-        <button className="primary-action" type="submit">{editingTaskId ? 'Save Task' : 'Add Task'}</button>
-      </div>
-      {confirmAction && (
-        <ConfirmDialog
-          title="Reset Task?"
-          body="This clears the current draft and uses the current date and time."
-          confirmLabel="Reset"
-          onCancel={() => setConfirmAction(undefined)}
+        <ConfirmActionButton
+          actionId="reset"
+          className="secondary-action"
+          confirmAction={confirmAction}
+          icon={<RotateCcw size={18} />}
+          label="Reset"
           onConfirm={() => {
             onChange(toTaskDraft(new Date(), undefined, planner.state.settings.themeColors.taskDefault));
             setConfirmAction(undefined);
           }}
+          setConfirmAction={setConfirmAction}
         />
-      )}
+        <button className="primary-action" type="submit">{editingTaskId ? 'Save Task' : 'Add Task'}</button>
+      </div>
     </form>
   );
 }
@@ -1426,6 +1530,42 @@ function ConfirmDialog({
         <button className={danger ? 'danger-action' : 'primary-action'} onClick={onConfirm} type="button">{confirmLabel}</button>
       </div>
     </div>
+  );
+}
+
+function ConfirmActionButton<T extends string>({
+  actionId,
+  className,
+  confirmAction,
+  icon,
+  label,
+  onConfirm,
+  setConfirmAction
+}: {
+  actionId: T;
+  className: string;
+  confirmAction?: T;
+  icon: ReactNode;
+  label: string;
+  onConfirm: () => void;
+  setConfirmAction: Dispatch<SetStateAction<T | undefined>>;
+}) {
+  const confirming = confirmAction === actionId;
+  return (
+    <button
+      className={className}
+      onClick={() => {
+        if (confirming) {
+          onConfirm();
+          return;
+        }
+        setConfirmAction(actionId);
+      }}
+      type="button"
+    >
+      {icon}
+      {confirming ? 'Confirm' : label}
+    </button>
   );
 }
 

@@ -14,7 +14,10 @@ export function buildThemeVariables(settings: AppSettings): Record<string, strin
     '--color-panel': colors.panelBackground,
     '--color-accent': colors.accent,
     '--color-task': colors.taskDefault,
-    '--color-event': colors.eventDefault
+    '--color-event': colors.eventDefault,
+    '--color-text': colors.textPrimary,
+    '--color-muted': colors.textMuted,
+    '--color-on-accent': colors.textOnAccent
   };
 }
 
