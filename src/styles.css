@@ -1,5 +1,5 @@
 :root {
-  color: var(--color-text, #17211b);
+  color: var(--color-text, #111827);
   background: var(--color-page, #eef1eb);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -43,19 +43,19 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid var(--color-accent, #7bbd8b);
+  outline: 3px solid var(--color-accent, #2f5597);
   outline-offset: 2px;
 }
 
 .app-shell {
-  --color-sidebar: #18241f;
-  --color-page: #eef1eb;
+  --color-sidebar: #233f78;
+  --color-page: #eef5ff;
   --color-panel: #ffffff;
-  --color-accent: #23693c;
-  --color-task: #23693c;
-  --color-event: #5578a6;
-  --color-text: #17211b;
-  --color-muted: #667466;
+  --color-accent: #2f5597;
+  --color-task: #2f5597;
+  --color-event: #4d63a6;
+  --color-text: #111827;
+  --color-muted: #526179;
   --color-on-accent: #ffffff;
   background: var(--color-page);
   color: var(--color-text);
@@ -108,9 +108,9 @@ textarea:focus-visible {
 
 .brand-mark {
   align-items: center;
-  background: #d7f2dd;
+  background: #dbeafe;
   border-radius: 8px;
-  color: #173d25;
+  color: #233f78;
   display: inline-flex;
   height: 42px;
   justify-content: center;
@@ -138,7 +138,7 @@ textarea:focus-visible {
 }
 
 .sidebar .eyebrow {
-  color: #a8c7b0;
+  color: #bfdbfe;
 }
 
 nav {
@@ -181,7 +181,7 @@ nav {
 
 .nav-button.active,
 .nav-button:hover {
-  background: #2c3d34;
+  background: #2f5597;
   color: #ffffff;
 }
 
@@ -253,7 +253,7 @@ nav {
 
 .dashboard-view .feature-panel {
   grid-column: span 3;
-  min-height: 260px;
+  min-height: 0;
 }
 
 .calendar-layout,
@@ -353,6 +353,11 @@ nav {
   padding: 0 16px;
 }
 
+.row-confirm-delete {
+  min-width: 74px;
+  padding: 0 10px;
+}
+
 .icon-action {
   background: color-mix(in srgb, var(--color-panel) 78%, var(--color-page));
   color: var(--color-text);
@@ -365,7 +370,7 @@ nav {
 .item-list {
   display: grid;
   gap: 9px;
-  max-height: min(54vh, 520px);
+  max-height: min(42vh, 420px);
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
@@ -453,13 +458,13 @@ nav {
   --fc-border-color: #dbe3d9;
   --fc-button-bg-color: var(--color-accent);
   --fc-button-border-color: var(--color-accent);
-  --fc-button-hover-bg-color: #1d5632;
-  --fc-button-hover-border-color: #1d5632;
-  --fc-button-active-bg-color: #18241f;
-  --fc-button-active-border-color: #18241f;
+  --fc-button-hover-bg-color: #27477f;
+  --fc-button-hover-border-color: #27477f;
+  --fc-button-active-bg-color: #233f78;
+  --fc-button-active-border-color: #233f78;
   --fc-event-bg-color: var(--color-event);
   --fc-event-border-color: var(--color-event);
-  --fc-today-bg-color: rgba(35, 105, 60, 0.09);
+  --fc-today-bg-color: rgba(47, 85, 151, 0.11);
   color: var(--color-text);
 }
 
@@ -524,12 +529,11 @@ nav {
   display: flex;
   height: 100%;
   justify-content: flex-end;
-  transform: translateY(-50%);
 }
 
 .calendar-panel .fc-timegrid-slot-label {
-  vertical-align: top;
   border-top-color: transparent !important;
+  vertical-align: middle;
 }
 
 .calendar-panel .fc-timegrid-axis-cushion,
@@ -550,26 +554,10 @@ nav {
 }
 
 .calendar-hit-layer {
-  inset: 10px;
-  pointer-events: none;
-  position: absolute;
-  z-index: 2;
-}
-
-.calendar-hit-target {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  display: block;
-  min-height: 0;
-  padding: 0;
+  inset: 52px 10px 10px 60px;
   pointer-events: auto;
   position: absolute;
-}
-
-.calendar-hit-target:hover,
-.calendar-hit-target:focus {
-  background: transparent;
+  z-index: 2;
 }
 
 .calendar-panel .fc-timegrid-event-harness,
@@ -597,9 +585,17 @@ nav {
   border-style: dashed;
 }
 
+.calendar-panel .calendar-item-completed {
+  opacity: 0.62;
+}
+
+.calendar-panel .calendar-item-completed .fc-event-title {
+  text-decoration: none;
+}
+
 .calendar-panel .draft-preview-event {
   opacity: 0.58;
-  outline: 2px dashed rgba(24, 36, 31, 0.45);
+  outline: 2px dashed color-mix(in srgb, var(--color-accent) 70%, transparent);
   outline-offset: -2px;
 }
 
@@ -613,8 +609,25 @@ nav {
 
 .form-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
+  overflow: visible;
+}
+
+.drawer-panel .form-actions {
+  background: var(--color-panel);
+  bottom: -1px;
+  gap: 8px;
+  padding-top: 8px;
+  position: sticky;
+  z-index: 3;
+}
+
+.drawer-panel .form-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .drawer-backdrop {
@@ -861,7 +874,7 @@ textarea {
 }
 
 .timer-progress span {
-  background: #23693c;
+  background: var(--color-accent);
   display: block;
   height: 100%;
   transition: width 0.3s ease;
@@ -950,14 +963,17 @@ textarea {
 }
 
 .color-grid {
-  display: grid;
+  display: flex;
+  flex-wrap: nowrap;
   gap: 8px;
-  grid-template-columns: repeat(6, 1fr);
+  max-width: 100%;
+  overflow: visible;
 }
 
 .color-grid label {
   align-items: center;
   display: inline-flex;
+  flex: 0 0 auto;
   justify-content: center;
 }
 
@@ -974,6 +990,14 @@ textarea {
   display: block;
   height: 30px;
   width: 30px;
+}
+
+.custom-color-field span {
+  align-items: center;
+  background: #ffffff;
+  color: #233f78;
+  display: inline-flex;
+  justify-content: center;
 }
 
 .color-grid input:checked + span {
@@ -1032,7 +1056,7 @@ textarea {
 
 .undo-toast {
   align-items: center;
-  background: #18241f;
+  background: #233f78;
   border-radius: 8px;
   bottom: 24px;
   box-shadow: 0 12px 24px rgba(20, 28, 24, 0.22);
@@ -1054,16 +1078,26 @@ textarea {
 }
 
 .expanded-list {
-  min-height: min(72vh, 620px);
+  min-height: 0;
 }
 
 .roomy-list .item-list {
-  max-height: min(62vh, 680px);
+  max-height: min(52vh, 560px);
 }
 
 .empty-state {
   color: var(--color-muted);
   margin: 8px 0;
+}
+
+.visually-hidden {
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
 }
 
 @media (max-width: 1060px) {

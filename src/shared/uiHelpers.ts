@@ -24,7 +24,7 @@ export function buildThemeVariables(settings: AppSettings): Record<string, strin
 export function resolveThemeColors(settings: AppSettings): ThemeColors {
   if (settings.themePreset === 'dark') return darkThemeColors;
   if (settings.themePreset === 'light') return lightThemeColors;
-  return settings.themeColors;
+  return deriveCustomThemeColors(settings.themeColors);
 }
 
 export function calendarClickRange(date: Date, isLineClick: boolean): { start: Date; end: Date } {
@@ -32,4 +32,18 @@ export function calendarClickRange(date: Date, isLineClick: boolean): { start: D
   return isLineClick
     ? { start: addMinutes(hourStart, -30), end: addMinutes(hourStart, 30) }
     : { start: hourStart, end: addMinutes(hourStart, 60) };
+}
+
+export function deriveCustomThemeColors(input: ThemeColors): ThemeColors {
+  return {
+    sidebar: input.sidebar || lightThemeColors.sidebar,
+    pageBackground: input.pageBackground || lightThemeColors.pageBackground,
+    panelBackground: input.panelBackground || lightThemeColors.panelBackground,
+    accent: input.accent,
+    taskDefault: input.taskDefault,
+    eventDefault: input.eventDefault,
+    textPrimary: input.textPrimary || lightThemeColors.textPrimary,
+    textMuted: input.textMuted || lightThemeColors.textMuted,
+    textOnAccent: input.textOnAccent || lightThemeColors.textOnAccent
+  };
 }

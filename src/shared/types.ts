@@ -95,9 +95,11 @@ export interface AppSettings {
   autostartEnabled: boolean;
   defaultReminderMinutes: number;
   showCalendarEventsInTasks: boolean;
+  showTaskItemsInTasks: boolean;
   showEventsInCalendar: boolean;
   showTasksInCalendar: boolean;
   sidebarCollapsed: boolean;
+  popupPosition: { x: number; y: number };
   themePreset: ThemePreset;
   themeColors: ThemeColors;
   calendarStartHour: number;
@@ -114,27 +116,27 @@ export interface AppSettings {
 }
 
 export const lightThemeColors: ThemeColors = {
-  sidebar: '#18241f',
-  pageBackground: '#eef1eb',
+  sidebar: '#233f78',
+  pageBackground: '#eef5ff',
   panelBackground: '#ffffff',
-  accent: '#23693c',
-  taskDefault: '#23693c',
-  eventDefault: '#5578a6',
-  textPrimary: '#17211b',
-  textMuted: '#667466',
+  accent: '#2f5597',
+  taskDefault: '#2f5597',
+  eventDefault: '#4d63a6',
+  textPrimary: '#111827',
+  textMuted: '#526179',
   textOnAccent: '#ffffff'
 };
 
 export const darkThemeColors: ThemeColors = {
-  sidebar: '#101614',
-  pageBackground: '#151a18',
-  panelBackground: '#202722',
-  accent: '#7bbd8b',
-  taskDefault: '#7bbd8b',
-  eventDefault: '#8aa8d8',
-  textPrimary: '#edf5ee',
-  textMuted: '#b9c8bc',
-  textOnAccent: '#102116'
+  sidebar: '#0c1630',
+  pageBackground: '#10192d',
+  panelBackground: '#192640',
+  accent: '#86a8e7',
+  taskDefault: '#86a8e7',
+  eventDefault: '#a8b7ee',
+  textPrimary: '#f8fafc',
+  textMuted: '#cbd5e1',
+  textOnAccent: '#061020'
 };
 
 export const defaultSettings: AppSettings = {
@@ -142,9 +144,11 @@ export const defaultSettings: AppSettings = {
   autostartEnabled: false,
   defaultReminderMinutes: 10,
   showCalendarEventsInTasks: true,
+  showTaskItemsInTasks: true,
   showEventsInCalendar: true,
   showTasksInCalendar: true,
   sidebarCollapsed: false,
+  popupPosition: { x: 0, y: 0 },
   themePreset: 'light',
   themeColors: lightThemeColors,
   calendarStartHour: 6,

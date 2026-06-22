@@ -4,7 +4,7 @@ import { createDefaultState } from './defaultState';
 import { normalizePlannerState } from '../shared/settings';
 
 // Temporary testing reset: bump this key during pre-approval update cycles.
-const key = 'productivity-codex-state-v4-test';
+const key = 'productivity-codex-state-v5-test';
 
 export class LocalStorageAdapter implements StoragePort {
   async load(): Promise<PlannerState> {

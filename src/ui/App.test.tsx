@@ -87,21 +87,13 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: /Mark Math class incomplete/i })).toBeInTheDocument();
   });
 
-  it('can reset planner data from settings', async () => {
+  it('removes reset test data from settings', async () => {
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Dashboard' });
-    await userEvent.click(navButton(/Tasks/i));
-    await userEvent.click(screen.getByRole('button', { name: /Add task/i }));
-    await userEvent.type(await screen.findByPlaceholderText('Task Title'), 'Temporary task');
-    const addTaskButtons = screen.getAllByRole('button', { name: /Add task/i });
-    await userEvent.click(addTaskButtons[addTaskButtons.length - 1]);
-    expect(await screen.findByText('Temporary task')).toBeInTheDocument();
-
     await userEvent.click(navButton(/Settings/i));
-    await userEvent.click(screen.getByRole('button', { name: /Reset test data/i }));
-    await userEvent.click(screen.getByRole('button', { name: /Confirm/i }));
-    await userEvent.click(navButton(/Tasks/i));
-    expect(screen.queryByText('Temporary task')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reset test data/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Import Planner Data/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Export Planner Data/i })).toBeInTheDocument();
   });
 });

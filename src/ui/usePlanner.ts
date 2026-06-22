@@ -200,6 +200,12 @@ export function usePlanner() {
     commitState(() => createDefaultState());
   }, [commitState]);
 
+  const importPlannerState = useCallback((nextState: PlannerState) => {
+    setActiveTimer(undefined);
+    setCompletedTimer(undefined);
+    commitState(() => nextState);
+  }, [commitState]);
+
   const calendarEvents = useMemo(() => getCalendarViewEvents(state), [state]);
   const upcoming = useMemo(() => getUpcomingItems(state), [state]);
   const todayItems = useMemo(() => getTodayItems(state), [state]);
@@ -228,6 +234,7 @@ export function usePlanner() {
     stopTimer,
     dismissCompletedTimer,
     updateSettings,
-    resetPlanner
+    resetPlanner,
+    importPlannerState
   };
 }

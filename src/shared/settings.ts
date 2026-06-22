@@ -21,7 +21,9 @@ export function normalizeSettings(settings: Partial<AppSettings> | undefined): A
     upcomingRange: ['today', '7days', '30days', 'all'].includes(merged.upcomingRange) ? merged.upcomingRange : defaultSettings.upcomingRange,
     showEventsInCalendar: merged.showEventsInCalendar ?? defaultSettings.showEventsInCalendar,
     showTasksInCalendar: merged.showTasksInCalendar ?? defaultSettings.showTasksInCalendar,
+    showTaskItemsInTasks: merged.showTaskItemsInTasks ?? defaultSettings.showTaskItemsInTasks,
     sidebarCollapsed: typeof merged.sidebarCollapsed === 'boolean' ? merged.sidebarCollapsed : defaultSettings.sidebarCollapsed,
+    popupPosition: normalizePopupPosition(merged.popupPosition),
     themePreset: normalizeThemePreset(merged.themePreset),
     themeColors: normalizeThemeColors(merged.themePreset, merged.themeColors),
     calendarStartHour,
@@ -44,7 +46,7 @@ export function normalizePlannerState(state: PersistedPlannerState): PlannerStat
       ...event,
       notes: event.notes ?? '',
       allDay: event.allDay ?? false,
-      color: event.color ?? '#5578a6',
+      color: event.color ?? lightThemeColors.eventDefault,
       importance: normalizeImportance(event.importance),
       reminders: Array.isArray(event.reminders) ? event.reminders : [],
       completedOccurrences: normalizeCompletionRecords(event.completedOccurrences, event.updatedAt ?? event.startsAt)
@@ -143,4 +145,24 @@ function normalizeThemeColors(preset: unknown, value: unknown): ThemeColors {
     textMuted: typeof colors.textMuted === 'string' ? colors.textMuted : base.textMuted,
     textOnAccent: typeof colors.textOnAccent === 'string' ? colors.textOnAccent : base.textOnAccent
   };
+}
+
+function normalizePopupPosition(value: unknown): AppSettings['popupPosition'] {
+  if (
+    value &&
+    typeof value === 'object' &&
+    'x' in value &&
+    'y' in value &&
+    typeof value.x === 'number' &&
+    typeof value.y === 'number' &&
+    Number.isFinite(value.x) &&
+    Number.isFinite(value.y)
+  ) {
+    return {
+      x: Math.max(0, Math.round(value.x)),
+      y: Math.max(0, Math.round(value.y))
+    };
+  }
+
+  return defaultSettings.popupPosition;
 }

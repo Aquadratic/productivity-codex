@@ -21,12 +21,13 @@ describe('ui helpers', () => {
   });
 
   it('builds theme CSS variables from presets and custom colors', () => {
-    expect(buildThemeVariables(defaultSettings)['--color-accent']).toBe('#23693c');
+    expect(buildThemeVariables(defaultSettings)['--color-accent']).toBe('#2f5597');
     expect(buildThemeVariables({
       ...defaultSettings,
       themePreset: 'custom',
       themeColors: { ...defaultSettings.themeColors, accent: '#123456' }
     })['--color-accent']).toBe('#123456');
-    expect(buildThemeVariables(defaultSettings)['--color-text']).toBe('#17211b');
+    expect(buildThemeVariables(defaultSettings)['--color-text']).toBe('#111827');
+    expect(buildThemeVariables({ ...defaultSettings, themePreset: 'dark' })['--color-text']).toBe('#f8fafc');
   });
 });

@@ -82,6 +82,16 @@ describe('selectors', () => {
     ).toEqual(['task']);
   });
 
+  it('shows or hides task records in the task list', () => {
+    expect(
+      getTaskListItems(
+        state({ settings: { ...defaultSettings, showTaskItemsInTasks: false } }),
+        'today',
+        new Date('2026-06-20T13:00:00.000Z')
+      ).map((item) => item.kind)
+    ).toEqual(['event']);
+  });
+
   it('moves completed tasks and events into completed sorted by completion time', () => {
     const completed = state({
       events: [

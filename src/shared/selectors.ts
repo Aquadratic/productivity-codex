@@ -1,7 +1,7 @@
 import { addDays, addMilliseconds, differenceInMilliseconds, isAfter, isBefore, isSameDay, parseISO } from 'date-fns';
 import type { CalendarEvent, PlannerState, Task, UpcomingRange } from './types';
 import { isEventOccurrenceCompleted } from './events';
-import { getTaskCompletionTime } from './tasks';
+import { getTaskCompletionTime, isTaskOccurrenceCompleted } from './tasks';
 import { normalizeOccurrenceKey } from './date';
 import { expandOccurrences } from './recurrence';
 
@@ -108,7 +108,7 @@ export function getTaskListGroups(
   now = new Date()
 ): PlannerListGroups {
   const tab = filter === 'completed' ? 'all' : filter;
-  const taskItems = tasksToItems(state.tasks);
+  const taskItems = state.settings.showTaskItemsInTasks ? tasksToItems(state.tasks) : [];
   const eventItems = state.settings.showCalendarEventsInTasks ? eventsToItems(state.events) : [];
 
   const active = [...taskItems, ...eventItems]
@@ -222,28 +222,39 @@ function eventToCalendarEvents(event: CalendarEvent, from: Date, to: Date): Cale
 }
 
 function taskToCalendarEvents(task: Task, from: Date, to: Date): CalendarViewEvent[] {
-  if (task.status === 'completed' || !task.endsAt) {
+  if (!task.endsAt) {
     return [];
   }
 
   const endsAt = parseISO(task.endsAt);
   const startsAt = task.startsAt ? parseISO(task.startsAt) : endsAt;
   const duration = Math.max(0, differenceInMilliseconds(endsAt, startsAt));
-  return expandOccurrences(endsAt, task.recurrenceRule, from, to).map((occurrence) => ({
-    id: `task:${task.id}:${occurrence.toISOString()}`,
-    title: task.title,
-    start: task.startsAt ? addMilliseconds(occurrence, -duration).toISOString() : occurrence.toISOString(),
-    end: occurrence.toISOString(),
-    allDay: task.allDay,
-    classNames: [`task-calendar-event`, `importance-${task.priority}`],
-    backgroundColor: task.color ?? '#23693c',
-    borderColor: task.color ?? '#23693c',
-    extendedProps: {
-      importance: task.priority,
-      notes: task.notes,
-      kind: 'task',
-      sourceId: task.id,
-      occurrenceAt: occurrence.toISOString()
-    }
-  }));
+  const active = task.status === 'completed'
+    ? []
+    : expandOccurrences(endsAt, task.recurrenceRule, from, to);
+  const completed = task.completedOccurrences
+    .map((record) => parseISO(record.occurrenceKey))
+    .filter((occurrence) => occurrence >= from && occurrence <= to);
+
+  return [...active, ...completed].map((occurrence) => {
+    const occurrenceAt = occurrence.toISOString();
+    const completedOccurrence = isTaskOccurrenceCompleted(task, occurrenceAt);
+    return {
+      id: `task:${task.id}:${occurrenceAt}:${completedOccurrence ? 'completed' : 'active'}`,
+      title: task.title,
+      start: task.startsAt ? addMilliseconds(occurrence, -duration).toISOString() : occurrenceAt,
+      end: occurrenceAt,
+      allDay: task.allDay,
+      classNames: [`task-calendar-event`, `importance-${task.priority}`, completedOccurrence ? 'calendar-item-completed' : ''],
+      backgroundColor: task.color ?? '#2f5597',
+      borderColor: task.color ?? '#2f5597',
+      extendedProps: {
+        importance: task.priority,
+        notes: task.notes,
+        kind: 'task' as const,
+        sourceId: task.id,
+        occurrenceAt
+      }
+    };
+  });
 }

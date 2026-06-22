@@ -9,17 +9,19 @@ describe('settings', () => {
     expect(normalizeSettings({ notificationsEnabled: false }).lastTimerDurationSeconds).toBe(1500);
     expect(normalizeSettings({ notificationsEnabled: false }).sidebarCollapsed).toBe(false);
     expect(normalizeSettings({ notificationsEnabled: false }).themePreset).toBe('light');
-    expect(normalizeSettings({ notificationsEnabled: false }).themeColors.taskDefault).toBe('#23693c');
-    expect(normalizeSettings({ notificationsEnabled: false }).themeColors.textPrimary).toBe('#17211b');
+    expect(normalizeSettings({ notificationsEnabled: false }).themeColors.taskDefault).toBe('#2f5597');
+    expect(normalizeSettings({ notificationsEnabled: false }).themeColors.textPrimary).toBe('#111827');
+    expect(normalizeSettings({ notificationsEnabled: false }).showTaskItemsInTasks).toBe(true);
+    expect(normalizeSettings({ notificationsEnabled: false }).popupPosition).toEqual({ x: 0, y: 0 });
     expect(normalizeSettings({ notificationsEnabled: false }).pomodoroFocusMinutes).toBe(25);
   });
 
   it('normalizes dark theme text colors', () => {
     const settings = normalizeSettings({ themePreset: 'dark', themeColors: {} as never });
 
-    expect(settings.themeColors.textPrimary).toBe('#edf5ee');
-    expect(settings.themeColors.textMuted).toBe('#b9c8bc');
-    expect(settings.themeColors.textOnAccent).toBe('#102116');
+    expect(settings.themeColors.textPrimary).toBe('#f8fafc');
+    expect(settings.themeColors.textMuted).toBe('#cbd5e1');
+    expect(settings.themeColors.textOnAccent).toBe('#061020');
   });
 
   it('normalizes older planner state', () => {
@@ -63,7 +65,7 @@ describe('settings', () => {
       ]
     });
 
-    expect(state.events[0].color).toBe('#5578a6');
+    expect(state.events[0].color).toBe('#4d63a6');
     expect(state.events[0].completedOccurrences).toEqual([
       { occurrenceKey: '2026-06-20T15:00:00.000Z', completedAt: '2026-06-20T17:00:00.000Z' }
     ]);
