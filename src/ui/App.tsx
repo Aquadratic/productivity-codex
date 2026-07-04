@@ -639,9 +639,10 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       const bodyRect = body.getBoundingClientRect();
       const colsRect = cols.getBoundingClientRect();
       const scrollerRect = scroller.getBoundingClientRect();
+      const scrollbarWidth = Math.max(0, scroller.offsetWidth - scroller.clientWidth);
       const left = Math.max(bodyRect.left, colsRect.left, scrollerRect.left);
       const top = Math.max(bodyRect.top, scrollerRect.top);
-      const right = Math.min(bodyRect.right, colsRect.right, scrollerRect.right);
+      const right = Math.min(bodyRect.right, colsRect.right, scrollerRect.right - scrollbarWidth);
       const bottom = Math.min(bodyRect.bottom, scrollerRect.bottom);
       const width = Math.max(0, right - left);
       const height = Math.max(0, bottom - top);
