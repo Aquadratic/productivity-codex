@@ -17,9 +17,13 @@ class BrowserNotificationAdapter implements NotificationPort {
   }
 
   async send(title: string, body: string): Promise<void> {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body });
+    if (!('Notification' in window)) {
+      throw new Error('Notifications are not supported in this browser.');
     }
+    if (Notification.permission !== 'granted' && !(await this.requestPermission())) {
+      throw new Error('Notification permission was denied.');
+    }
+    new Notification(title, { body });
   }
 }
 
@@ -41,7 +45,7 @@ class InMemoryReminderScheduler implements ReminderSchedulerPort {
     this.timers = reminders.map((reminder) => {
       const delay = Math.max(0, new Date(reminder.triggerAt).getTime() - Date.now());
       return window.setTimeout(() => {
-        new BrowserNotificationAdapter().send('Reminder', reminder.title);
+        new BrowserNotificationAdapter().send('Reminder', reminder.title).catch(() => undefined);
       }, delay);
     });
   }
@@ -52,6 +56,12 @@ export function createBrowserPorts(): PlatformPorts {
     storage: new LocalStorageAdapter(),
     notifications: new BrowserNotificationAdapter(),
     autostart: new UnsupportedAutostartAdapter(),
-    reminders: new InMemoryReminderScheduler()
+    reminders: new InMemoryReminderScheduler(),
+    platform: {
+      isAndroid: /Android/i.test(navigator.userAgent),
+      isDesktop: !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+      supportsAutostart: false,
+      supportsNotifications: 'Notification' in window
+    }
   };
 }

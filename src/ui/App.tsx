@@ -464,6 +464,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
 
       const panel = calendarPanelRef.current;
       const slots = Array.from(panel?.querySelectorAll<HTMLElement>('.fc-timegrid-slot-lane[data-time]') ?? []);
+      const columns = Array.from(panel?.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]') ?? []);
       const slotFromTarget = clickTarget instanceof Element
         ? clickTarget.closest<HTMLElement>('.fc-timegrid-slot-lane[data-time]')
         : undefined;
@@ -471,6 +472,20 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         .find((element): element is HTMLElement => element instanceof HTMLElement && element.matches('.fc-timegrid-slot-lane[data-time]'));
       const slot = slotFromTarget ?? slotFromPoint;
       if (!slot?.dataset.time) return;
+      const column = columns.find((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        return arg.jsEvent.clientX >= rect.left && arg.jsEvent.clientX <= rect.right && arg.jsEvent.clientY >= rect.top && arg.jsEvent.clientY <= rect.bottom;
+      });
+      if (!column?.dataset.date) return;
+      const slotRect = slot.getBoundingClientRect();
+      if (
+        arg.jsEvent.clientX < slotRect.left ||
+        arg.jsEvent.clientX > slotRect.right ||
+        arg.jsEvent.clientY < slotRect.top ||
+        arg.jsEvent.clientY > slotRect.bottom
+      ) {
+        return;
+      }
 
       const nearestLineSlot = slots.reduce<{ slot: HTMLElement; distance: number } | undefined>((nearest, candidate) => {
         const distance = Math.abs(arg.jsEvent.clientY - candidate.getBoundingClientRect().top);
@@ -479,7 +494,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       const lineThreshold = 8;
       const lineSlot = nearestLineSlot && nearestLineSlot.distance <= lineThreshold ? nearestLineSlot.slot : undefined;
       const time = lineSlot?.dataset.time ?? slot.dataset.time;
-      const startsAt = new Date(`${format(arg.date, 'yyyy-MM-dd')}T${time}`);
+      const startsAt = new Date(`${column.dataset.date}T${time}`);
       const range = calendarClickRange(startsAt, Boolean(lineSlot));
       openChoice(range.start, range.end);
     }
@@ -554,7 +569,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   }, [calendarItems, draft, drawerMode, editingEventId, pendingSelection, planner.state.events, pointerSelection, settings.themeColors.eventDefault]);
 
   const updateDroppedItem = (arg: any) => {
-    const props = arg.event.extendedProps as { kind?: 'event' | 'task'; sourceId?: string };
+    const props = arg.event.extendedProps as { kind?: 'event' | 'task'; sourceId?: string; occurrenceAt?: string; completed?: boolean };
     const sourceId = props.sourceId;
     if (!props.kind || !sourceId || !arg.event.start || !arg.event.end) return;
 
@@ -562,20 +577,36 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
       const event = planner.state.events.find((candidate) => candidate.id === sourceId);
       if (!event) return;
       setUndo({ kind: 'event', id: sourceId, previous: { startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay } });
+      const completedOccurrences = props.completed && props.occurrenceAt
+        ? event.completedOccurrences.map((record) => (
+          record.occurrenceKey === props.occurrenceAt
+            ? { ...record, occurrenceKey: arg.event.start!.toISOString() }
+            : record
+        ))
+        : event.completedOccurrences;
       planner.updateEvent(sourceId, {
         startsAt: arg.event.start.toISOString(),
         endsAt: arg.event.end.toISOString(),
-        allDay: arg.event.allDay
+        allDay: arg.event.allDay,
+        completedOccurrences
       });
     } else {
       const task = planner.state.tasks.find((candidate) => candidate.id === sourceId);
       if (!task) return;
       setUndo({ kind: 'task', id: sourceId, previous: { startsAt: task.startsAt, endsAt: task.endsAt ?? arg.event.end.toISOString(), dueAt: task.dueAt, allDay: task.allDay } });
+      const completedOccurrences = props.completed && props.occurrenceAt
+        ? task.completedOccurrences.map((record) => (
+          record.occurrenceKey === props.occurrenceAt
+            ? { ...record, occurrenceKey: arg.event.end!.toISOString() }
+            : record
+        ))
+        : task.completedOccurrences;
       planner.updateTask(sourceId, {
         startsAt: task.startsAt ? arg.event.start.toISOString() : undefined,
         endsAt: arg.event.end.toISOString(),
         dueAt: arg.event.end.toISOString(),
-        allDay: arg.event.allDay
+        allDay: arg.event.allDay,
+        completedOccurrences
       });
     }
   };
@@ -598,17 +629,19 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
     const measure = () => {
       const panelRect = panel.getBoundingClientRect();
       const body = panel.querySelector<HTMLElement>('.fc-timegrid-body');
+      const cols = panel.querySelector<HTMLElement>('.fc-timegrid-cols');
       const scroller = body?.closest<HTMLElement>('.fc-scroller');
-      if (!body || !scroller) {
+      if (!body || !cols || !scroller) {
         setHitBounds(undefined);
         return;
       }
 
       const bodyRect = body.getBoundingClientRect();
+      const colsRect = cols.getBoundingClientRect();
       const scrollerRect = scroller.getBoundingClientRect();
-      const left = Math.max(bodyRect.left, scrollerRect.left);
+      const left = Math.max(bodyRect.left, colsRect.left, scrollerRect.left);
       const top = Math.max(bodyRect.top, scrollerRect.top);
-      const right = Math.min(bodyRect.right, scrollerRect.right);
+      const right = Math.min(bodyRect.right, colsRect.right, scrollerRect.right);
       const bottom = Math.min(bodyRect.bottom, scrollerRect.bottom);
       const width = Math.max(0, right - left);
       const height = Math.max(0, bottom - top);
@@ -670,10 +703,12 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             dayMaxEvents={3}
             editable
             eventDurationEditable
+            eventMaxStack={1}
             eventOrder="start,duration,title,id"
             eventOrderStrict
             eventStartEditable
             eventDisplay="block"
+            eventContent={renderCalendarEventContent}
             eventClick={handleEventClick}
             eventMouseEnter={() => setPointerSelection(undefined)}
             events={previewEvents}
@@ -711,7 +746,7 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             eventResize={updateDroppedItem}
             slotDuration="01:00:00"
             snapDuration="00:30:00"
-            scrollTime="06:00:00"
+            scrollTime="00:00:00"
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
             views={{
@@ -811,6 +846,17 @@ function CalendarView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
         )}
       </div>
     </div>
+  );
+}
+
+function renderCalendarEventContent(arg: { event: { title: string; extendedProps: Record<string, unknown> }; timeText: string }) {
+  const isCompleted = arg.event.extendedProps.completed === true;
+  return (
+    <span className="calendar-event-content">
+      {isCompleted && <Check className="calendar-completed-check" aria-hidden="true" size={16} />}
+      {arg.timeText && <span className="calendar-event-time">{arg.timeText}</span>}
+      <span className="calendar-event-title">{arg.event.title}</span>
+    </span>
   );
 }
 
@@ -978,12 +1024,16 @@ function CalendarTimeInteractionLayer({
       onWheel={(event) => {
         const panel = panelRef.current;
         const scroller = Array.from(panel?.querySelectorAll<HTMLElement>('.fc-scroller') ?? [])
-          .find((candidate) => candidate.scrollHeight > candidate.clientHeight || candidate.scrollWidth > candidate.clientWidth);
+          .find((candidate) => candidate.scrollHeight > candidate.clientHeight);
         if (!scroller) return;
+        const atTop = scroller.scrollTop <= 0;
+        const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+        if ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom)) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         scroller.scrollTop += event.deltaY;
-        scroller.scrollLeft += event.deltaX;
       }}
       role="presentation"
     >
@@ -1016,6 +1066,7 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
   const [selectedTaskOccurrenceKey, setSelectedTaskOccurrenceKey] = useState<string>();
   const [selectedEventId, setSelectedEventId] = useState<string>();
   const [selectedEventOccurrenceKey, setSelectedEventOccurrenceKey] = useState<string>();
+  const [completionUndo, setCompletionUndo] = useState<{ kind: 'task' | 'event'; id: string; title: string; occurrenceKey?: string; wasCompleted: boolean }>();
   const [eventDraft, setEventDraft] = useState<EventDraft>(() => toDraft(new Date(), undefined, undefined, planner.state.settings.themeColors.eventDefault));
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(() => toTaskDraft(new Date()));
   const groups = useMemo(() => getTaskListGroups(planner.state, filter), [filter, planner.state]);
@@ -1052,6 +1103,24 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
     setFilter('today');
   }, [defaultSignal]);
 
+  useEffect(() => {
+    if (!completionUndo) return undefined;
+    const timeout = window.setTimeout(() => setCompletionUndo(undefined), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [completionUndo]);
+
+  const undoCompletionToggle = () => {
+    if (!completionUndo) return;
+    if (completionUndo.kind === 'task') {
+      const task = planner.state.tasks.find((candidate) => candidate.id === completionUndo.id);
+      if (task) planner.toggleTask(task, completionUndo.occurrenceKey);
+    } else {
+      const event = planner.state.events.find((candidate) => candidate.id === completionUndo.id);
+      if (event) planner.toggleEvent(event, completionUndo.occurrenceKey);
+    }
+    setCompletionUndo(undefined);
+  };
+
   return (
     <div className="view-stack full-height-view">
       <header className="view-header">
@@ -1082,14 +1151,20 @@ function TasksView({ planner, defaultSignal }: { planner: ReturnType<typeof useP
           empty="Nothing in this list."
         >
           {groups.active.map((item) => (
-            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} />
+            <PlannerItemRow item={item} key={`${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} onToggleItem={setCompletionUndo} />
           ))}
         </ListPanel>
-        <ListPanel title="Completed" detail="Finished Items For This Tab" empty="Nothing completed here yet." initiallyCollapsed>
+        <ListPanel title="Completed" detail="Finished items for this tab." empty="Nothing completed here yet." initiallyCollapsed>
           {groups.completed.map((item) => (
-            <PlannerItemRow item={item} key={`completed-${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} />
+            <PlannerItemRow item={item} key={`completed-${item.kind}-${item.id}`} planner={planner} onEdit={() => openItemEdit(item)} onOpen={() => openItemDetails(item)} onToggleItem={setCompletionUndo} />
           ))}
         </ListPanel>
+        {completionUndo && (
+          <div className="undo-toast task-undo-toast" role="status">
+            <span>{completionUndo.wasCompleted ? 'Marked incomplete.' : 'Marked complete.'}</span>
+            <button className="secondary-action" onClick={undoCompletionToggle} type="button">Undo</button>
+          </div>
+        )}
         {drawerMode && (
           <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => {
             if (event.target === event.currentTarget) setDrawerMode(undefined);
@@ -1359,7 +1434,16 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
   const [confirmAction, setConfirmAction] = useState<string>();
   const [importState, setImportState] = useState<ReturnType<typeof parsePlannerExport>>();
   const [importError, setImportError] = useState<string>();
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [pendingSyncChoice, setPendingSyncChoice] = useState<'local' | 'cloud'>();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!planner.pendingRemoteState) {
+      setPendingSyncChoice(undefined);
+    }
+  }, [planner.pendingRemoteState]);
 
   const exportPlannerData = () => {
     const exportedAt = new Date();
@@ -1410,14 +1494,25 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
             type="checkbox"
           />
         </label>
-        <label className="toggle-row">
-          <span><Clock3 size={18} /> Start With Windows</span>
-          <input
-            checked={settings.autostartEnabled}
-            onChange={(event) => planner.updateSettings({ ...settings, autostartEnabled: event.target.checked })}
-            type="checkbox"
-          />
-        </label>
+        {planner.platform.supportsAutostart && (
+          <label className="toggle-row">
+            <span><Clock3 size={18} /> Start With Windows</span>
+            <input
+              checked={settings.autostartEnabled}
+              onChange={(event) => planner.updateSettings({ ...settings, autostartEnabled: event.target.checked })}
+              type="checkbox"
+            />
+          </label>
+        )}
+        {!planner.platform.supportsAutostart && (
+          <p className="header-note">Autostart is desktop-only and is hidden on Android.</p>
+        )}
+        <div className="form-actions settings-actions">
+          <button className="secondary-action" disabled={!planner.platform.supportsNotifications} onClick={planner.testNotification} type="button">
+            Test Notification
+          </button>
+        </div>
+        {planner.notificationStatus && <p className="header-note" role="status">{planner.notificationStatus}</p>}
         <section className="settings-section" aria-label="Theme Settings">
           <PanelTitle title="Theme" detail="Preset Or Custom App Colors" />
           <label className="field">
@@ -1465,6 +1560,87 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           <NumberSetting label="Sessions Before Long Break" value={settings.pomodoroSessionsBeforeLongBreak} onChange={(value) => planner.updateSettings({ ...settings, pomodoroSessionsBeforeLongBreak: value })} />
         </section>
         <SoundControls planner={planner} />
+        <section className="settings-section" aria-label="Account Sync">
+          <PanelTitle title="Account Sync" detail={planner.syncUser ? `Signed in${planner.syncUser.email ? ` as ${planner.syncUser.email}` : ''}` : 'Email and password Supabase sync'} />
+          {planner.syncUser ? (
+            <div className="form-actions settings-actions">
+              <button className="secondary-action" disabled={planner.syncStatus === 'syncing'} onClick={planner.syncNow} type="button">
+                Sync Now
+              </button>
+              <button className="secondary-action" onClick={planner.signOut} type="button">
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <div className="auth-grid">
+              <label className="field">
+                <span>Email</span>
+                <input autoComplete="email" type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input autoComplete="current-password" type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} />
+              </label>
+              <div className="form-actions settings-actions">
+                <button className="primary-action" disabled={!authEmail || !authPassword || planner.syncStatus === 'syncing'} onClick={() => planner.signIn(authEmail, authPassword)} type="button">
+                  Sign In
+                </button>
+                <button className="secondary-action" disabled={!authEmail || !authPassword || planner.syncStatus === 'syncing'} onClick={() => planner.signUp(authEmail, authPassword)} type="button">
+                  Create Account
+                </button>
+              </div>
+            </div>
+          )}
+          {planner.pendingRemoteState && (
+            <div className="sync-warning">
+              <strong>Cloud data is different from this device.</strong>
+              <span>Export a backup, choose which copy to keep, then confirm the choice.</span>
+              {pendingSyncChoice && (
+                <span className="sync-choice">
+                  Selected: {pendingSyncChoice === 'local' ? 'Keep local data on this device' : 'Use cloud data for this device'}
+                </span>
+              )}
+              <div className="form-actions settings-actions">
+                <button className="secondary-action" onClick={exportPlannerData} type="button">
+                  <Download size={18} />
+                  Export Backup
+                </button>
+                <button className={pendingSyncChoice === 'local' ? 'primary-action' : 'secondary-action'} onClick={() => setPendingSyncChoice('local')} type="button">
+                  Keep Local Data
+                </button>
+                <button className={pendingSyncChoice === 'cloud' ? 'danger-action' : 'secondary-action'} onClick={() => setPendingSyncChoice('cloud')} type="button">
+                  Use Cloud Data
+                </button>
+                {pendingSyncChoice && (
+                  <>
+                    <button
+                      className={pendingSyncChoice === 'cloud' ? 'danger-action' : 'primary-action'}
+                      onClick={() => {
+                        if (pendingSyncChoice === 'local') planner.keepLocalState();
+                        if (pendingSyncChoice === 'cloud') planner.useRemoteState();
+                        setPendingSyncChoice(undefined);
+                      }}
+                      type="button"
+                    >
+                      Confirm Selection
+                    </button>
+                    <button className="secondary-action" onClick={() => setPendingSyncChoice(undefined)} type="button">
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <p className="header-note">
+            {planner.syncStatus === 'syncing'
+              ? 'Syncing...'
+              : planner.lastSyncedAt
+                ? `Last Synced ${format(parseISO(planner.lastSyncedAt), 'MMM d, h:mm a')}`
+                : 'Local data stays on this device until you sign in.'}
+          </p>
+          {planner.syncError && <p className="form-error" role="alert">{planner.syncError}</p>}
+        </section>
         <div className="form-actions settings-actions">
           <input
             accept="application/json"
@@ -1805,13 +1981,35 @@ function TaskForm({
   );
 }
 
-function PlannerItemRow({ item, planner, onEdit, onOpen }: { item: PlannerListItem; planner: ReturnType<typeof usePlanner>; onEdit?: () => void; onOpen?: () => void }) {
+function PlannerItemRow({
+  item,
+  planner,
+  onEdit,
+  onOpen,
+  onToggleItem
+}: {
+  item: PlannerListItem;
+  planner: ReturnType<typeof usePlanner>;
+  onEdit?: () => void;
+  onOpen?: () => void;
+  onToggleItem?: (undo: { kind: 'task' | 'event'; id: string; title: string; occurrenceKey?: string; wasCompleted: boolean }) => void;
+}) {
   const when = formatItemTime(item);
   const source = item.source;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const toggle = () => item.kind === 'task'
     ? planner.toggleTask(source as Task, item.occurrenceKey ?? item.endsAt ?? item.dueAt)
     : planner.toggleEvent(source as CalendarEvent, item.occurrenceKey ?? item.startsAt);
+  const toggleWithMotion = () => {
+    toggle();
+    onToggleItem?.({
+      kind: item.kind,
+      id: item.kind === 'task' ? (source as Task).id : (source as CalendarEvent).id,
+      title: item.title,
+      occurrenceKey: item.occurrenceKey ?? (item.kind === 'task' ? item.endsAt ?? item.dueAt : item.startsAt),
+      wasCompleted: item.completed
+    });
+  };
   const deleteItem = () => {
     if (item.kind === 'task') {
       const task = source as Task;
@@ -1838,8 +2036,8 @@ function PlannerItemRow({ item, planner, onEdit, onOpen }: { item: PlannerListIt
     >
       <button
         aria-label={item.completed ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}
-        className="icon-action"
-        onClick={(event) => { event.stopPropagation(); toggle(); }}
+        className="icon-action completion-toggle"
+        onClick={(event) => { event.stopPropagation(); toggleWithMotion(); }}
         title={item.completed ? 'Mark incomplete' : 'Mark complete'}
         type="button"
       >

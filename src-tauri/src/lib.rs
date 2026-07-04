@@ -1,18 +1,23 @@
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri_plugin_autostart::MacosLauncher;
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_sql::Builder::default().build());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--background"]),
         ))
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -49,13 +54,17 @@ pub fn run() {
                 .build(app)?;
 
             Ok(())
-        })
-        .on_window_event(|window, event| {
+        });
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let _ = window.hide();
                 api.prevent_close();
             }
-        })
+        });
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running Productivity Codex");
 }

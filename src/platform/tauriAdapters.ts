@@ -51,19 +51,24 @@ class TauriNotificationAdapter implements NotificationPort {
 
   async send(title: string, body: string): Promise<void> {
     const notification = await import('@tauri-apps/plugin-notification');
-    if (await this.requestPermission()) {
-      notification.sendNotification({ title, body });
+    if (!(await this.requestPermission())) {
+      throw new Error('Notification permission was denied.');
     }
+    notification.sendNotification({ title, body });
   }
 }
 
 class TauriAutostartAdapter implements AutostartPort {
+  private supported = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
   async isEnabled(): Promise<boolean> {
+    if (!this.supported) return false;
     const autostart = await import('@tauri-apps/plugin-autostart');
     return autostart.isEnabled();
   }
 
   async setEnabled(enabled: boolean): Promise<void> {
+    if (!this.supported) return;
     const autostart = await import('@tauri-apps/plugin-autostart');
     if (enabled) {
       await autostart.enable();
@@ -81,16 +86,25 @@ class TauriReminderScheduler implements ReminderSchedulerPort {
     const notifications = new TauriNotificationAdapter();
     this.timers = reminders.map((reminder) => {
       const delay = Math.max(0, new Date(reminder.triggerAt).getTime() - Date.now());
-      return window.setTimeout(() => notifications.send('Reminder', reminder.title), delay);
+      return window.setTimeout(() => {
+        notifications.send('Reminder', reminder.title).catch(() => undefined);
+      }, delay);
     });
   }
 }
 
 export function createTauriPorts(): PlatformPorts {
+  const isAndroid = /Android/i.test(navigator.userAgent);
   return {
     storage: new TauriSqliteStorageAdapter(),
     notifications: new TauriNotificationAdapter(),
     autostart: new TauriAutostartAdapter(),
-    reminders: new TauriReminderScheduler()
+    reminders: new TauriReminderScheduler(),
+    platform: {
+      isAndroid,
+      isDesktop: !isAndroid,
+      supportsAutostart: !isAndroid,
+      supportsNotifications: true
+    }
   };
 }

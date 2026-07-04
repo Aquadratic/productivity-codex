@@ -24,6 +24,12 @@ export interface PlatformPorts {
   notifications: NotificationPort;
   autostart: AutostartPort;
   reminders: ReminderSchedulerPort;
+  platform: {
+    isAndroid: boolean;
+    isDesktop: boolean;
+    supportsAutostart: boolean;
+    supportsNotifications: boolean;
+  };
 }
 
 export interface SettingsPort {

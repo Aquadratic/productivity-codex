@@ -28,10 +28,25 @@ input,
 select,
 textarea {
   font: inherit;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    filter 160ms ease;
 }
 
 button {
   cursor: pointer;
+}
+
+select {
+  cursor: pointer;
+}
+
+select:hover:not(:disabled) {
+  box-shadow: 0 7px 16px rgba(27, 43, 82, 0.08);
+  filter: brightness(1.01);
 }
 
 button:disabled {
@@ -163,6 +178,14 @@ nav {
   gap: 8px;
   justify-content: center;
   min-height: 40px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    filter 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 
 .nav-button {
@@ -185,11 +208,31 @@ nav {
   color: #ffffff;
 }
 
+.nav-button:hover,
+.primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled),
+.danger-action:hover:not(:disabled),
+.icon-action:hover:not(:disabled),
+.segmented button:hover:not(:disabled) {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.nav-button:active,
+.primary-action:active:not(:disabled),
+.secondary-action:active:not(:disabled),
+.danger-action:active:not(:disabled),
+.icon-action:active:not(:disabled),
+.segmented button:active:not(:disabled) {
+  filter: brightness(0.97);
+  transform: translateY(0);
+}
+
 .workspace {
   min-height: 0;
   min-width: 0;
   overflow: auto;
-  padding: 22px;
+  padding: 16px;
 }
 
 .dashboard-header-actions {
@@ -214,8 +257,8 @@ nav {
 
 .view-stack {
   display: grid;
-  gap: 16px;
-  min-height: calc(100vh - 44px);
+  gap: 10px;
+  min-height: calc(100vh - 32px);
 }
 
 .full-height-view {
@@ -223,20 +266,20 @@ nav {
 }
 
 .calendar-view {
-  max-height: calc(100vh - 44px);
+  max-height: calc(100vh - 32px);
   overflow: hidden;
 }
 
 .view-header {
   align-items: center;
   display: flex;
-  gap: 16px;
+  gap: 10px;
   justify-content: space-between;
-  min-height: 56px;
+  min-height: 44px;
 }
 
 .view-header h2 {
-  font-size: clamp(1.55rem, 2vw, 2.2rem);
+  font-size: clamp(1.35rem, 1.8vw, 1.95rem);
 }
 
 .header-note {
@@ -280,6 +323,10 @@ nav {
   box-shadow: 0 16px 35px rgba(36, 47, 42, 0.09);
   min-width: 0;
   padding: 16px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .loading-panel {
@@ -377,7 +424,8 @@ nav {
   gap: 12px;
   max-height: min(56vh, 620px);
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 2px;
 }
 
@@ -405,6 +453,15 @@ nav {
   grid-template-columns: auto minmax(0, 1fr);
   min-height: 68px;
   padding: 12px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.list-row:hover {
+  box-shadow: 0 10px 22px rgba(27, 43, 82, 0.1);
 }
 
 .list-row > .icon-action:first-child {
@@ -425,6 +482,7 @@ nav {
 }
 
 .list-row.completed {
+  animation: completeSettle 380ms ease both;
   background: color-mix(in srgb, var(--color-accent) 11%, var(--color-panel));
   border-color: color-mix(in srgb, var(--color-accent) 24%, var(--color-panel));
   opacity: 0.86;
@@ -476,6 +534,14 @@ nav {
   align-self: center;
   color: var(--color-muted);
   flex: 0 0 auto;
+  transition:
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.list-row:hover .row-actions > svg {
+  color: var(--color-accent);
+  transform: translateX(1px);
 }
 
 .item-notes {
@@ -492,12 +558,33 @@ nav {
   white-space: normal;
 }
 
+.completion-toggle {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.list-row.completed .completion-toggle {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+.completion-toggle svg {
+  stroke-width: 2.35;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
 .calendar-panel {
-  height: calc(100vh - 112px);
-  min-height: 520px;
-  overscroll-behavior: contain;
+  height: calc(100vh - 84px);
+  min-height: 500px;
+  overscroll-behavior: auto;
   overflow: hidden;
-  padding: 8px;
+  padding: 6px;
   position: relative;
 }
 
@@ -514,11 +601,13 @@ nav {
   --fc-event-border-color: var(--color-event);
   --fc-today-bg-color: rgba(47, 85, 151, 0.11);
   color: var(--color-text);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .calendar-panel .fc-toolbar {
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 
 .calendar-panel .fc-toolbar-title {
@@ -529,17 +618,26 @@ nav {
   white-space: nowrap;
 }
 
+.calendar-panel .fc-view-harness,
+.calendar-panel .fc-view-harness-active,
+.calendar-panel .fc-view {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .calendar-panel .fc-button {
   border-radius: 8px;
   font-weight: 700;
-  min-height: 30px;
-  padding: 4px 9px;
+  min-height: 28px;
+  padding: 3px 8px;
   text-transform: capitalize;
 }
 
 .calendar-panel .fc-scroller {
-  overscroll-behavior: contain;
-  overflow: auto !important;
+  overscroll-behavior: auto;
+  max-height: 100%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 
 .calendar-panel .fc-daygrid-day-frame {
@@ -551,6 +649,14 @@ nav {
   font-size: 0.74rem;
   margin: 1px 3px;
   overflow: hidden;
+}
+
+.calendar-panel .fc-timegrid-body,
+.calendar-panel .fc-timegrid-cols,
+.calendar-panel .fc-timegrid-col,
+.calendar-panel .fc-timegrid-slots {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .calendar-panel .fc-event-main-frame {
@@ -570,7 +676,29 @@ nav {
 }
 
 .calendar-panel .fc-timegrid-slot {
-  height: 38px;
+  height: 34px;
+}
+
+.calendar-panel .fc-timegrid-slots table {
+  margin-bottom: 28px;
+  margin-top: 10px;
+}
+
+.calendar-panel .fc-timegrid-body {
+  padding-bottom: 18px;
+}
+
+.calendar-panel .fc-timegrid,
+.calendar-panel .fc-timegrid-body,
+.calendar-panel .fc-timegrid-slots,
+.calendar-panel .fc-timegrid-cols {
+  min-height: 0;
+}
+
+.calendar-panel .fc-list {
+  display: block;
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .calendar-panel .fc-timegrid-slot-label-frame {
@@ -619,6 +747,9 @@ nav {
 .calendar-panel .fc-timegrid-event-harness,
 .calendar-panel .fc-timegrid-event,
 .calendar-panel .fc-daygrid-event {
+  max-width: 100%;
+  min-height: 32px;
+  overflow: hidden;
   pointer-events: auto;
   z-index: 4;
 }
@@ -659,10 +790,13 @@ nav {
   border-color: color-mix(in srgb, var(--color-muted) 16%, var(--color-panel)) !important;
   border-style: solid !important;
   color: var(--color-text);
+  max-width: 100%;
 }
 
 .calendar-panel .fc-list-table {
   border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
 }
 
 .calendar-panel .fc-list-event td {
@@ -705,8 +839,8 @@ nav {
   font-weight: 800;
   line-height: 1;
   margin: 1px 3px;
-  max-width: 30px;
-  overflow: hidden;
+  max-width: min(100%, 72px);
+  overflow: visible;
   padding: 2px 5px;
   text-overflow: clip;
   white-space: nowrap;
@@ -760,15 +894,114 @@ nav {
   vertical-align: middle;
 }
 
+.calendar-event-content {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: middle;
+  width: 100%;
+}
+
+.calendar-event-time {
+  flex: 0 0 auto;
+  font-weight: 800;
+}
+
+.calendar-event-title {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.calendar-panel .fc-timegrid-event .calendar-event-content,
+.calendar-panel .fc-daygrid-event .calendar-event-content {
+  align-items: flex-start;
+  display: grid;
+  gap: 2px 4px;
+  line-height: 1.08;
+  min-height: 100%;
+  overflow: visible;
+  white-space: normal;
+}
+
+.calendar-panel .fc-timegrid-event .calendar-event-title,
+.calendar-panel .fc-daygrid-event .calendar-event-title {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-clamp: unset;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.calendar-panel .fc-timegrid-event .calendar-event-time,
+.calendar-panel .fc-daygrid-event .calendar-event-time {
+  font-size: 0.66rem;
+  line-height: 1;
+}
+
+.calendar-completed-check {
+  align-items: center;
+  background: var(--color-task);
+  border-radius: 999px;
+  color: var(--color-on-accent);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  padding: 3px;
+  width: 18px;
+}
+
 .calendar-panel .calendar-item-completed .fc-event-title {
   text-decoration: none;
+}
+
+.calendar-panel .calendar-item-completed {
+  animation: completeSettle 360ms ease both;
 }
 
 .calendar-panel .draft-preview-event {
   opacity: 0.58;
   outline: 2px dashed color-mix(in srgb, var(--color-accent) 70%, transparent);
   outline-offset: -2px;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.calendar-panel .draft-preview-event .fc-event-title,
+.calendar-panel .draft-preview-event .fc-event-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.calendar-panel .draft-preview-event .fc-event-title {
+  display: block;
+  font-size: clamp(0.62rem, 1.8vw, 0.76rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.calendar-panel .fc-event,
+.calendar-panel .fc-button,
+.calendar-panel .fc-more-link {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
 }
 
 .form-panel {
@@ -803,6 +1036,7 @@ nav {
 }
 
 .drawer-backdrop {
+  animation: backdropFadeIn 140ms ease both;
   background: rgba(24, 36, 31, 0.28);
   bottom: 0;
   display: flex;
@@ -822,6 +1056,7 @@ nav {
 }
 
 .draggable-panel {
+  animation: panelFadeIn 170ms ease both;
   background: var(--color-panel);
   border-radius: 8px;
   display: grid;
@@ -998,6 +1233,7 @@ textarea {
 }
 
 .timer-panel {
+  animation: softEnter 180ms ease both;
   display: grid;
   gap: 16px;
   max-width: 460px;
@@ -1005,10 +1241,12 @@ textarea {
 }
 
 .timer-panel.active-session {
+  animation: timerPanelWake 260ms ease both;
   background: color-mix(in srgb, var(--color-panel) 88%, #fbfff9);
 }
 
 .completion-screen {
+  animation: completionGlow 520ms ease both;
   border-color: #9ccaa7;
 }
 
@@ -1019,6 +1257,10 @@ textarea {
   letter-spacing: 0;
   line-height: 1;
   text-align: center;
+  transition:
+    color 180ms ease,
+    text-shadow 180ms ease,
+    transform 180ms ease;
 }
 
 .pomodoro-summary,
@@ -1032,6 +1274,153 @@ textarea {
 
 .pomodoro-summary span {
   color: var(--color-muted);
+}
+
+.auth-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.sync-warning {
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-panel));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, var(--color-panel));
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.sync-warning span {
+  color: var(--color-muted);
+}
+
+.sync-warning .sync-choice {
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-panel));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 26%, var(--color-panel));
+  border-radius: 8px;
+  color: var(--color-text);
+  font-weight: 800;
+  padding: 8px 10px;
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panelFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes softEnter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes completeSettle {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 34%, transparent);
+    transform: scale(0.992);
+  }
+  55% {
+    box-shadow: 0 0 0 7px transparent;
+    transform: scale(1.004);
+  }
+  100% {
+    box-shadow: none;
+    transform: scale(1);
+  }
+}
+
+@keyframes incompleteSettle {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-muted) 24%, transparent);
+    opacity: 0.86;
+    transform: scale(1.002);
+  }
+  100% {
+    box-shadow: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes checkboxPop {
+  0% {
+    transform: scale(0.88);
+  }
+  55% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes checkboxRelease {
+  0% {
+    transform: rotate(-4deg) scale(1.08);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes timerPanelWake {
+  from {
+    box-shadow: 0 14px 28px rgba(27, 43, 82, 0.08);
+  }
+  to {
+    box-shadow: 0 18px 42px rgba(27, 43, 82, 0.14);
+  }
+}
+
+@keyframes completionGlow {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 18px 42px rgba(27, 43, 82, 0.14);
+  }
+}
+
+@keyframes progressSheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  55%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 .theme-color-grid {
@@ -1056,7 +1445,18 @@ textarea {
   background: var(--color-accent);
   display: block;
   height: 100%;
+  overflow: hidden;
+  position: relative;
   transition: width 0.3s ease;
+}
+
+.timer-progress span::after {
+  animation: progressSheen 1800ms ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.36), transparent);
+  content: "";
+  inset: 0;
+  position: absolute;
+  transform: translateX(-100%);
 }
 
 .timer-meta {
@@ -1070,6 +1470,10 @@ textarea {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
+}
+
+.timer-actions button {
+  box-shadow: 0 8px 18px rgba(27, 43, 82, 0.1);
 }
 
 .settings-panel {
@@ -1299,18 +1703,18 @@ textarea {
   }
 
   .workspace {
-    min-height: 760px;
+    min-height: 0;
     overflow: visible;
-    padding: 16px 16px 86px;
+    padding: 10px 12px 76px;
   }
 
   .calendar-view {
-    max-height: none;
+    max-height: calc(100vh - 86px);
     min-height: 0;
   }
 
   .calendar-view .view-header {
-    gap: 10px;
+    gap: 6px;
     min-height: auto;
   }
 
@@ -1365,8 +1769,32 @@ textarea {
   }
 
   .calendar-panel {
-    height: min(78vh, 760px);
-    min-height: 620px;
+    height: calc(100vh - 150px);
+    min-height: 500px;
+  }
+
+  .calendar-panel .fc-timegrid-slot {
+    height: 34px;
+  }
+
+  .calendar-panel .fc-timegrid-event .calendar-event-content,
+  .calendar-panel .fc-daygrid-event .calendar-event-content {
+    display: block;
+    line-height: 1;
+  }
+
+  .calendar-panel .fc-timegrid-event .calendar-event-time {
+    display: none;
+  }
+
+  .calendar-panel .fc-timegrid-event .calendar-event-title,
+  .calendar-panel .fc-daygrid-event .calendar-event-title {
+    font-size: 0.58rem;
+    line-height: 1;
+    max-width: 100%;
+    overflow: visible;
+    white-space: normal;
+    word-break: break-all;
   }
 
   .drawer-backdrop {
@@ -1378,6 +1806,8 @@ textarea {
   .view-header {
     align-items: stretch;
     flex-direction: column;
+    gap: 6px;
+    min-height: 0;
   }
 
   .segmented {
@@ -1398,7 +1828,7 @@ textarea {
 
   .calendar-panel .fc-toolbar {
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     flex-direction: column;
   }
 
@@ -1431,9 +1861,13 @@ textarea {
   }
 
   .calendar-panel {
-    height: 72vh;
-    min-height: 600px;
-    padding: 6px;
+    height: calc(100vh - 174px);
+    min-height: 450px;
+    padding: 4px;
+  }
+
+  .calendar-panel .fc-timegrid-slot {
+    height: 34px;
   }
 
   .weekday-grid {

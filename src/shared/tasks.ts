@@ -19,10 +19,9 @@ export function completeTaskOccurrence(task: Task, occurrenceAt = task.endsAt ??
     };
   }
 
-  const advancedTask = advanceRecurringTask(task, parseISO(occurrenceKey), true);
-
   return {
-    ...advancedTask,
+    ...task,
+    status: 'open',
     completedOccurrences,
     updatedAt: new Date().toISOString()
   };
@@ -71,32 +70,15 @@ export function toggleTaskCompletion(task: Task, occurrenceAt = task.endsAt ?? t
   const isCompleted = Boolean(completedRecord) || task.status === 'completed';
 
   if (isCompleted) {
-    const reopened: Task = {
+    return {
       ...task,
       status: 'open',
       completedOccurrences: task.completedOccurrences.filter((candidate) => candidate.occurrenceKey !== occurrenceKey),
       updatedAt: new Date().toISOString()
     };
-    return task.recurrenceRule && completedRecord ? restoreTaskOccurrence(reopened, occurrenceKey) : reopened;
   }
 
   return completeTaskOccurrence(task, occurrenceAt);
-}
-
-function restoreTaskOccurrence(task: Task, occurrenceKey: string): Task {
-  const currentEnd = parseISO(task.endsAt ?? task.dueAt ?? occurrenceKey);
-  const duration = task.startsAt
-    ? differenceInMilliseconds(currentEnd, parseISO(task.startsAt))
-    : 0;
-  const restoredEnd = parseISO(occurrenceKey);
-
-  return {
-    ...task,
-    startsAt: task.startsAt ? addMilliseconds(restoredEnd, -duration).toISOString() : undefined,
-    endsAt: restoredEnd.toISOString(),
-    dueAt: restoredEnd.toISOString(),
-    updatedAt: new Date().toISOString()
-  };
 }
 
 export function getNextTaskOccurrence(task: Task, after = new Date()): Date | undefined {

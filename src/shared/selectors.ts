@@ -124,7 +124,11 @@ export function getTaskListGroups(
 
 function tasksToItems(tasks: Task[]): PlannerListItem[] {
   return tasks.flatMap((task) => {
-    const active: PlannerListItem[] = task.status === 'completed'
+    const currentOccurrenceKey = task.endsAt ?? task.dueAt;
+    const currentOccurrenceCompleted = currentOccurrenceKey
+      ? task.completedOccurrences.some((record) => normalizeOccurrenceKey(record.occurrenceKey) === normalizeOccurrenceKey(currentOccurrenceKey))
+      : false;
+    const active: PlannerListItem[] = task.status === 'completed' || currentOccurrenceCompleted
       ? []
       : [{
     id: task.id,
@@ -218,17 +222,20 @@ function eventToCalendarEvents(event: CalendarEvent, from: Date, to: Date): Cale
   const endsAt = parseISO(event.endsAt);
   const duration = differenceInMilliseconds(endsAt, startsAt);
   const occurrences = Array.from(new Set([
-    ...(startsAt >= from && startsAt <= to ? [startsAt] : [])
+    ...(startsAt >= from && startsAt <= to ? [startsAt] : []),
+    ...event.completedOccurrences.map((record) => parseISO(record.occurrenceKey)).filter((occurrence) => occurrence >= from && occurrence <= to)
   ].map((occurrence) => occurrence.toISOString()))).map((occurrence) => parseISO(occurrence));
   return occurrences.map((occurrence) => {
     const occurrenceAt = occurrence.toISOString();
+    const completedRecord = event.completedOccurrences.find((record) => normalizeOccurrenceKey(record.occurrenceKey) === normalizeOccurrenceKey(occurrenceAt));
+    const completed = Boolean(completedRecord);
     return {
       id: `event:${event.id}:${occurrenceAt}`,
       title: event.title,
       start: occurrenceAt,
       end: addMilliseconds(occurrence, duration).toISOString(),
       allDay: event.allDay,
-      classNames: [`importance-${event.importance}`],
+      classNames: [`importance-${event.importance}`, ...(completed ? ['calendar-item-completed'] : [])],
       backgroundColor: event.color,
       borderColor: event.color,
       extendedProps: {
@@ -236,7 +243,9 @@ function eventToCalendarEvents(event: CalendarEvent, from: Date, to: Date): Cale
         notes: event.notes,
         kind: 'event' as const,
         sourceId: event.id,
-        occurrenceAt
+        occurrenceAt,
+        completed,
+        completedAt: completedRecord?.completedAt
       }
     };
   });
@@ -250,18 +259,22 @@ function taskToCalendarEvents(task: Task, from: Date, to: Date): CalendarViewEve
   const endsAt = parseISO(task.endsAt);
   const startsAt = task.startsAt ? parseISO(task.startsAt) : endsAt;
   const duration = Math.max(0, differenceInMilliseconds(endsAt, startsAt));
-  const active = task.status === 'completed' || endsAt < from || endsAt > to
+  const currentOccurrenceCompleted = task.completedOccurrences.some((record) => normalizeOccurrenceKey(record.occurrenceKey) === normalizeOccurrenceKey(endsAt.toISOString()));
+  const active = task.status === 'completed' || currentOccurrenceCompleted || endsAt < from || endsAt > to
     ? []
-    : [endsAt];
-  return active.map((occurrence) => {
+    : [{ occurrence: endsAt, completed: false, completedAt: undefined as string | undefined }];
+  const completed = task.completedOccurrences
+    .map((record) => ({ occurrence: parseISO(record.occurrenceKey), completed: true, completedAt: record.completedAt }))
+    .filter(({ occurrence }) => occurrence >= from && occurrence <= to);
+  return [...active, ...completed].map(({ occurrence, completed, completedAt }) => {
     const occurrenceAt = occurrence.toISOString();
     return {
-      id: `task:${task.id}:${occurrenceAt}:active`,
+      id: `task:${task.id}:${occurrenceAt}:${completed ? 'completed' : 'active'}`,
       title: task.title,
       start: task.startsAt ? addMilliseconds(occurrence, -duration).toISOString() : occurrenceAt,
       end: occurrenceAt,
       allDay: task.allDay,
-      classNames: [`task-calendar-event`, `importance-${task.priority}`],
+      classNames: [`task-calendar-event`, `importance-${task.priority}`, ...(completed ? ['calendar-item-completed'] : [])],
       backgroundColor: task.color ?? '#2f5597',
       borderColor: task.color ?? '#2f5597',
       extendedProps: {
@@ -269,7 +282,9 @@ function taskToCalendarEvents(task: Task, from: Date, to: Date): CalendarViewEve
         notes: task.notes,
         kind: 'task' as const,
         sourceId: task.id,
-        occurrenceAt
+        occurrenceAt,
+        completed,
+        completedAt
       }
     };
   });
