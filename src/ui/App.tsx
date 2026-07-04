@@ -1505,7 +1505,7 @@ function SettingsView({ planner }: { planner: ReturnType<typeof usePlanner> }) {
           </label>
         )}
         {!planner.platform.supportsAutostart && (
-          <p className="header-note">Autostart is desktop-only and is hidden on Android.</p>
+          <p className="header-note">Autostart is available only in the Windows desktop app.</p>
         )}
         <div className="form-actions settings-actions">
           <button className="secondary-action" disabled={!planner.platform.supportsNotifications} onClick={planner.testNotification} type="button">

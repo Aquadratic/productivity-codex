@@ -794,9 +794,25 @@ nav {
 }
 
 .calendar-panel .fc-list-table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   width: 100%;
+}
+
+.calendar-panel .fc-list-event-time {
+  width: 168px;
+  white-space: nowrap;
+}
+
+.calendar-panel .fc-list-event-graphic {
+  width: 34px;
+}
+
+.calendar-panel .fc-list-event-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .calendar-panel .fc-list-event td {
@@ -905,6 +921,15 @@ nav {
   width: 100%;
 }
 
+.calendar-panel .fc-list-event .calendar-event-content {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  line-height: 1.25;
+  min-width: 0;
+  white-space: normal;
+}
+
 .calendar-event-time {
   flex: 0 0 auto;
   font-weight: 800;
@@ -1009,7 +1034,9 @@ nav {
   display: grid;
   gap: 10px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-padding-bottom: 28px;
 }
 
 .form-actions {
@@ -1021,11 +1048,12 @@ nav {
 
 .drawer-panel .form-actions {
   background: var(--color-panel);
-  bottom: -1px;
+  border-top: 1px solid color-mix(in srgb, var(--color-muted) 16%, var(--color-panel));
   gap: 8px;
-  padding-top: 8px;
-  position: sticky;
-  z-index: 3;
+  margin: 8px 0 0;
+  padding: 8px 16px 14px;
+  position: static;
+  z-index: 1;
 }
 
 .drawer-panel .form-actions button {
@@ -1684,13 +1712,20 @@ textarea {
 }
 
 @media (max-width: 1060px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+  }
+
   body {
     overflow: auto;
   }
 
   .app-shell {
     grid-template-columns: 1fr;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow: visible;
   }
 
@@ -1705,7 +1740,19 @@ textarea {
   .workspace {
     min-height: 0;
     overflow: visible;
-    padding: 10px 12px 76px;
+    padding: 10px 12px calc(104px + env(safe-area-inset-bottom));
+  }
+
+  .view-stack,
+  .settings-screen,
+  .timer-screen {
+    min-height: auto;
+  }
+
+  .settings-screen {
+    align-content: start;
+    padding-bottom: 28px;
+    place-content: start center;
   }
 
   .calendar-view {
@@ -1733,7 +1780,7 @@ textarea {
     gap: 4px;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     left: 0;
-    padding: 8px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
     position: fixed;
     right: 0;
     z-index: 25;
@@ -1770,6 +1817,7 @@ textarea {
 
   .calendar-panel {
     height: calc(100vh - 150px);
+    height: calc(100dvh - 150px);
     min-height: 500px;
   }
 
@@ -1784,7 +1832,9 @@ textarea {
   }
 
   .calendar-panel .fc-timegrid-event .calendar-event-time {
-    display: none;
+    display: block;
+    font-size: 0.6rem;
+    line-height: 1;
   }
 
   .calendar-panel .fc-timegrid-event .calendar-event-title,
@@ -1792,13 +1842,86 @@ textarea {
     font-size: 0.58rem;
     line-height: 1;
     max-width: 100%;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: normal;
-    word-break: break-all;
+    word-break: normal;
+  }
+
+  .calendar-panel .fc-daygrid-event {
+    min-height: 20px;
+  }
+
+  .calendar-panel .fc-daygrid-event .calendar-event-content {
+    display: flex;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .calendar-panel .fc-daygrid-event .calendar-event-time {
+    display: none;
+  }
+
+  .calendar-panel .fc-list-event td {
+    display: block;
+    width: 100% !important;
+  }
+
+  .calendar-panel .fc-list-table,
+  .calendar-panel .fc-list-table tbody,
+  .calendar-panel .fc-list-day,
+  .calendar-panel .fc-list-event {
+    display: block;
+    width: 100%;
+  }
+
+  .calendar-panel .fc-list-event-time {
+    color: var(--color-muted);
+    font-weight: 800;
+    padding-bottom: 2px !important;
+    white-space: normal;
+  }
+
+  .calendar-panel .fc-list-event-title {
+    padding-top: 0 !important;
+  }
+
+  .calendar-panel .fc-list-event-graphic {
+    display: none !important;
+  }
+
+  .calendar-panel .fc-list-event .calendar-event-content {
+    align-items: flex-start;
+    display: flex;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .calendar-panel .fc-list-event .calendar-event-title {
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .calendar-panel .fc-list-day-cushion {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
   }
 
   .drawer-backdrop {
     padding: 10px;
+  }
+
+  .undo-toast {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+    justify-content: space-between;
+    left: 12px;
+    right: 12px;
+    z-index: 40;
   }
 }
 
@@ -1862,12 +1985,73 @@ textarea {
 
   .calendar-panel {
     height: calc(100vh - 174px);
+    height: calc(100dvh - 174px);
     min-height: 450px;
     padding: 4px;
   }
 
   .calendar-panel .fc-timegrid-slot {
     height: 34px;
+  }
+
+  .calendar-panel .fc-col-header-cell-cushion {
+    display: block;
+    font-size: 0.78rem;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+    padding: 3px 1px;
+    white-space: normal;
+  }
+
+  .calendar-panel .fc-daygrid-day-number {
+    font-size: 0.82rem;
+    padding: 3px;
+  }
+
+  .calendar-panel .fc-daygrid-event {
+    height: 20px;
+    max-height: 20px;
+    min-height: 20px;
+    padding: 1px 2px;
+  }
+
+  .calendar-panel .fc-daygrid-event .calendar-event-content {
+    align-items: center;
+    display: block;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .calendar-panel .fc-daygrid-event .calendar-completed-check,
+  .calendar-panel .fc-daygrid-event .calendar-event-title {
+    display: none;
+  }
+
+  .calendar-panel .fc-daygrid-event .calendar-event-time {
+    display: block;
+    font-size: 0.58rem;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .drawer-panel {
+    max-height: calc(100dvh - 28px);
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .time-parts {
+    grid-template-columns: minmax(54px, 0.7fr) minmax(62px, 0.8fr) minmax(68px, 0.8fr);
+  }
+
+  .time-parts select,
+  .time-parts input {
+    padding-left: 8px;
+    padding-right: 8px;
   }
 
   .weekday-grid {
